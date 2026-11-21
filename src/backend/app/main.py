@@ -48,6 +48,7 @@ from . import supabase_store
 from . import news_feed
 from . import threat_feeds
 from .protection import router as protection_router
+from .assistant import router as assistant_router
 
 load_dotenv(FilePath(__file__).resolve().parents[1] / ".env")
 
@@ -167,6 +168,7 @@ async def check_phone_reputation(request: PhoneReputationRequest):
     }
 app.include_router(protection_router)
 app.include_router(alerts.router)
+app.include_router(assistant_router)
 
 #email address checker
 DISPOSABLE_EMAIL_DOMAINS = {

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import AuthModal from "../auth/AuthModal";
+import { openCyberAssistant } from "../../lib/assistant";
 
 function GuestDashboard() {
   const navigate = useNavigate();
@@ -208,7 +209,7 @@ function GuestDashboard() {
           <button
             className="guest-tool-button"
             type="button"
-            onClick={() => navigate("/cyber-assistant")}
+            onClick={() => openCyberAssistant()}
           >
             Open Cyber Assistant
           </button>

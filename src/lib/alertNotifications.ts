@@ -62,6 +62,7 @@ const SOURCE_LABEL: Record<string, string> = {
   email: "Email Scanner",
   file: "File checker",
   link: "Link checker",
+  incident: "Incidents",
 };
 
 /** Human-readable name of the feature that found an alert. */

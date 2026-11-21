@@ -6,7 +6,9 @@ import platform
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
 from windows_scanner import scan_windows
 from mac_scanner import scan_mac
 from malware_scanner import start_scan, scan_status, cancel_scan
@@ -18,7 +20,6 @@ from system_guardian import (
 )
 from process_analysis import analyze_processes
 
-from pydantic import BaseModel
 from process_termination import (
     check_termination_eligibility,
     terminate_eligible_process,
@@ -35,7 +36,10 @@ from security_timeline import (
     record_process_termination,
 )
 
-from process_network import get_process_network_connections
+from process_network import (
+    get_process_network_connections,
+    poll_network_first_seen,
+)
 
 app = FastAPI(title="CyberGuard Local Scanner")
 
@@ -46,6 +50,69 @@ process_cache = {
     "scanning": False,
     "last_updated": None,
 }
+
+NETWORK_POLL_SECONDS = 5.0
+_network_poll_stop = threading.Event()
+_network_poll_thread = None
+
+
+def _start_local_telemetry():
+    """Initialize device-local event store and background watchers.
+
+    Failures are swallowed so the existing scanner API still starts.
+    """
+
+    global _network_poll_thread
+
+    try:
+        from event_store import init_store
+
+        init_store()
+    except Exception:
+        import logging
+
+        logging.exception("Event store startup failed")
+
+    try:
+        from download_watcher import start_download_watcher
+
+        start_download_watcher()
+    except Exception:
+        import logging
+
+        logging.exception("Downloads watcher startup failed")
+
+    try:
+        if _network_poll_thread is None or not _network_poll_thread.is_alive():
+            _network_poll_stop.clear()
+
+            def _network_loop():
+                while not _network_poll_stop.is_set():
+                    poll_network_first_seen()
+                    _network_poll_stop.wait(NETWORK_POLL_SECONDS)
+
+            _network_poll_thread = threading.Thread(
+                target=_network_loop,
+                name="cyberguard-network-poll",
+                daemon=True,
+            )
+            _network_poll_thread.start()
+    except Exception:
+        import logging
+
+        logging.exception("Network first-seen poller startup failed")
+
+    try:
+        from correlation import start_correlation_engine
+
+        start_correlation_engine()
+    except Exception:
+        import logging
+
+        logging.exception("Correlation engine startup failed")
+
+
+_start_local_telemetry()
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,6 +131,45 @@ ALLOWED_ORIGINS = {
     "http://127.0.0.1:5173",
 }
 
+
+class ScanRequest(BaseModel):
+    mode: str = "quick"
+    folder: str = "downloads"
+
+
+class FolderRequest(BaseModel):
+    path: str
+
+
+class IngestEntity(BaseModel):
+    id: str = Field(..., min_length=1, max_length=512)
+    kind: str = Field(..., min_length=1, max_length=64)
+    label: str = Field(..., min_length=1, max_length=1024)
+    base_risk: float = Field(default=0.0, ge=0.0, le=1.0)
+    attrs: dict[str, Any] = Field(default_factory=dict)
+
+
+class IngestEdge(BaseModel):
+    src: str = Field(..., min_length=1, max_length=512)
+    dst: str = Field(..., min_length=1, max_length=512)
+    kind: str = Field(..., min_length=1, max_length=64)
+
+
+class IngestEvent(BaseModel):
+    id: str = Field(..., min_length=1, max_length=512)
+    source: Literal["email", "website", "file_check", "gmail_attachment"]
+    type: str = Field(..., min_length=1, max_length=64)
+    ts: float
+    risk: float = Field(default=0.0, ge=0.0, le=1.0)
+    payload: dict[str, Any] = Field(default_factory=dict)
+    entities: list[IngestEntity] = Field(default_factory=list)
+    edges: list[IngestEdge] = Field(default_factory=list)
+
+
+class IngestBatch(BaseModel):
+    events: list[IngestEvent] = Field(..., min_length=1, max_length=200)
+
+
 def require_local_frontend(
     origin: str | None = Header(default=None),
 ):
@@ -80,6 +186,177 @@ def health(_=Depends(require_local_frontend)):
     return {"status": "ready", "operating_system": system,
             "supported": system in ("Windows", "Darwin")}
 
+
+@app.post("/events/ingest")
+def ingest_events(
+    batch: IngestBatch,
+    _=Depends(require_local_frontend),
+):
+    """Accept normalized correlation events from the CyberGuard web app."""
+
+    try:
+        from event_store import ingest_normalized_batch
+
+        result = ingest_normalized_batch(
+            [event.model_dump() for event in batch.events]
+        )
+        if result.get("accepted", 0) > 0:
+            try:
+                from correlation import request_correlation_run
+
+                request_correlation_run()
+            except Exception:
+                pass
+        return {"status": "ok", **result}
+    except Exception:
+        import logging
+
+        logging.exception("Event ingest failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to ingest events.",
+        )
+
+
+class IncidentStatusRequest(BaseModel):
+    status: Literal["open", "resolved", "dismissed"]
+
+
+@app.get("/incidents")
+def get_incidents(
+    status: str = "open",
+    _=Depends(require_local_frontend),
+):
+    try:
+        from event_store import list_incidents
+
+        allowed = {"open", "resolved", "dismissed", "all"}
+        if status not in allowed:
+            raise HTTPException(status_code=400, detail="Invalid status filter.")
+        incidents = list_incidents(None if status == "all" else status)
+        return {"incidents": incidents, "total": len(incidents)}
+    except HTTPException:
+        raise
+    except Exception:
+        import logging
+
+        logging.exception("List incidents failed")
+        raise HTTPException(status_code=500, detail="Unable to list incidents.")
+
+
+@app.get("/incidents/{incident_id}")
+def get_incident_detail(
+    incident_id: str,
+    _=Depends(require_local_frontend),
+):
+    try:
+        from correlation.engine import get_incident_with_graph
+
+        detail = get_incident_with_graph(incident_id)
+        if detail is None:
+            raise HTTPException(status_code=404, detail="Incident not found.")
+        return detail
+    except HTTPException:
+        raise
+    except Exception:
+        import logging
+
+        logging.exception("Get incident failed")
+        raise HTTPException(status_code=500, detail="Unable to load incident.")
+
+
+@app.post("/incidents/{incident_id}/status")
+def set_incident_status(
+    incident_id: str,
+    request: IncidentStatusRequest,
+    _=Depends(require_local_frontend),
+):
+    try:
+        from event_store import update_incident_status
+
+        ok = update_incident_status(incident_id, request.status)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Incident not found.")
+        return {"id": incident_id, "status": request.status}
+    except HTTPException:
+        raise
+    except Exception:
+        import logging
+
+        logging.exception("Update incident status failed")
+        raise HTTPException(status_code=500, detail="Unable to update incident.")
+
+
+@app.get("/graph")
+def get_graph(
+    since: float | None = None,
+    _=Depends(require_local_frontend),
+):
+    try:
+        import time
+
+        from correlation.config import DEFAULT_WINDOW_SECONDS
+        from correlation.graph import load_graph
+        from correlation.propagation import propagate_risk
+
+        if since is None:
+            window = DEFAULT_WINDOW_SECONDS
+        else:
+            window = max(60.0, time.time() - float(since))
+
+        graph = load_graph(window_seconds=window)
+        propagated = propagate_risk(graph)
+        nodes = []
+        for node_id, node in graph["nodes"].items():
+            nodes.append(
+                {
+                    **node,
+                    "propagated_risk": propagated["risk"].get(node_id, 0.0),
+                    "max_parent": propagated["max_parent"].get(node_id),
+                }
+            )
+        return {
+            "since": graph["since"],
+            "nodes": nodes,
+            "edges": graph["edges"],
+            "total_nodes": len(nodes),
+            "total_edges": len(graph["edges"]),
+        }
+    except Exception:
+        import logging
+
+        logging.exception("Graph debug endpoint failed")
+        raise HTTPException(status_code=500, detail="Unable to load graph.")
+
+
+@app.post("/events/demo")
+def seed_demo_events(_=Depends(require_local_frontend)):
+    """Dev-only synthetic phish chain. Requires CYBERGUARD_DEMO_EVENTS=1."""
+
+    if os.environ.get("CYBERGUARD_DEMO_EVENTS", "").strip() not in {"1", "true", "yes"}:
+        raise HTTPException(
+            status_code=403,
+            detail="Demo seeding disabled. Set CYBERGUARD_DEMO_EVENTS=1 to enable.",
+        )
+
+    try:
+        from correlation.demo import seed_demo_chain
+        from correlation.engine import request_correlation_run, run_correlation_once
+
+        seeded = seed_demo_chain()
+        summary = run_correlation_once()
+        request_correlation_run()
+        return {
+            "status": "ok",
+            "seed": seeded,
+            "correlation": summary,
+        }
+    except Exception:
+        import logging
+
+        logging.exception("Demo seed failed")
+        raise HTTPException(status_code=500, detail="Unable to seed demo events.")
+
 @app.get("/status")
 def security_status(_=Depends(require_local_frontend)):
     system = platform.system()
@@ -88,12 +365,6 @@ def security_status(_=Depends(require_local_frontend)):
     if system == "Darwin":
         return scan_mac()
     raise HTTPException(status_code=501, detail=f"Unsupported operating system: {system}")
-
-class ScanRequest(BaseModel):
-    mode: str = "quick"
-    folder: str = "downloads"
-class FolderRequest(BaseModel):
-    path: str
 
 
 @app.post("/choose-folder")

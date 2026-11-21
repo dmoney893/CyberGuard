@@ -20,7 +20,7 @@ async function readJson<T>(res: Response): Promise<T> {
 
 export interface SecurityAlert {
   id: string;
-  source: "website" | "email" | "link" | "file";
+  source: "website" | "email" | "link" | "file" | "incident";
   threat_type: string;
   risk_level: "HIGH" | "MEDIUM";
   title: string;

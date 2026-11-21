@@ -13,6 +13,7 @@ import { normalizeFindingDomain } from "../lib/organizationFindings";
 import { useAuth } from "../context/AuthContext";
 
 import { prepareHistoryDeletion } from "../lib/extensionBridge";
+import { pushWebsiteVisitEvents } from "../lib/incidentEvents";
 import { mergeHistorySnapshot } from "../lib/websiteHistory";
 
 type Website = {
@@ -200,6 +201,10 @@ function WebsiteTrackerContent() {
         if (ignore || mutation !== historyMutation.current) return;
 
         cachedEntries = mergeHistorySnapshot(cachedEntries, delta);
+        // Additive local correlation feed; no-ops if the scanner is offline.
+        if (delta.entries.length > 0) {
+          pushWebsiteVisitEvents(delta.entries);
+        }
         setHistoryError("");
         const history = [...cachedEntries.values()];
         const mapped = history.map((entry) => ({

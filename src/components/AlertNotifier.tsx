@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { listAlerts, markAlertReviewed, type SecurityAlert } from "../api/alertsApi";
 import { notifyAlert, sourceLabel } from "../lib/alertNotifications";
+import { checkScannerReachable, listIncidents } from "../lib/incidentsApi";
 import "./AlertNotifier.css";
 
 /** Backup check in case the live connection drops. */
@@ -20,6 +21,7 @@ const SOURCE_PAGE: Record<string, string> = {
   email: "/email-scanner",
   file: "/security-checker",
   link: "/security-checker",
+  incident: "/incidents",
 };
 
 interface Toast {
@@ -260,6 +262,67 @@ export default function AlertNotifier({ userId, accessToken }: AlertNotifierProp
       if (client && channel) void client.removeChannel(channel);
     };
   }, [userId]);
+
+  // Local correlation engine: notify on newly opened HIGH incidents.
+  useEffect(() => {
+    let cancelled = false;
+    const seen = new Set<string>();
+    let primed = false;
+
+    const pollIncidents = async () => {
+      try {
+        const reachable = await checkScannerReachable();
+        if (cancelled || !reachable) return;
+        const incidents = await listIncidents("open");
+        if (cancelled) return;
+
+        const high = incidents.filter((item) => item.severity === "HIGH");
+        if (!primed) {
+          high.forEach((item) => seen.add(item.id));
+          primed = true;
+          return;
+        }
+
+        for (const incident of [...high].reverse()) {
+          if (seen.has(incident.id)) continue;
+          seen.add(incident.id);
+
+          const alert: SecurityAlert = {
+            id: incident.id,
+            source: "incident",
+            threat_type: "CORRELATED_INCIDENT",
+            risk_level: "HIGH",
+            title: incident.title,
+            details: {
+              explanation: (incident.storyline || [])
+                .slice(0, 3)
+                .map((step) => step.text),
+            },
+            related_ref: incident.id,
+            status: "new",
+            detected_at: new Date(
+              (incident.updated_at || incident.created_at || Date.now() / 1000) *
+                1000,
+            ).toISOString(),
+            reviewed_at: null,
+          };
+
+          // Use visit kind so we don't offer "Mark as reviewed" (local-only).
+          addToast(`incident:${incident.id}`, "visit", alert);
+          notifyAlert(alert);
+        }
+      } catch {
+        // Scanner offline or unreachable — ignore.
+      }
+    };
+
+    void pollIncidents();
+    const interval = window.setInterval(() => void pollIncidents(), POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [userId, addToast]);
 
   const review = async (key: string, alertId: string) => {
     setToasts((current) =>

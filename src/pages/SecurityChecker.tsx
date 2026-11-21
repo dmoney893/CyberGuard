@@ -36,6 +36,7 @@ import {
   phoneReputationFinding,
   recordSecurityScan,
 } from "../lib/scanActivity";
+import { pushFileCheckEvent } from "../lib/incidentEvents";
 
 import zxcvbn from "zxcvbn";
 
@@ -205,6 +206,14 @@ function SecurityChecker() {
         title: result.filename || "Gmail attachment",
         detail: result.classification,
         finding: fileFindingFromClassification(result.classification),
+      });
+      pushFileCheckEvent({
+        sha256: result.sha256,
+        filename: result.filename || "Gmail attachment",
+        classification: result.classification,
+        riskScore: result.risk_score,
+        source: "gmail_attachment",
+        gmailMessageId: messageId,
       });
     } catch (error) {
       console.error("Gmail attachment scan error:", error);
@@ -730,6 +739,13 @@ function SecurityChecker() {
         title: data.filename || selectedFile.name,
         detail: data.classification,
         finding: fileFindingFromClassification(data.classification),
+      });
+      pushFileCheckEvent({
+        sha256: data.sha256,
+        filename: data.filename || selectedFile.name,
+        classification: data.classification,
+        riskScore: data.risk_score,
+        source: "file_check",
       });
     } catch (error) {
       console.error("File scan error:", error);

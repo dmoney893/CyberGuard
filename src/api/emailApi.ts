@@ -52,6 +52,10 @@ export interface EmailResult {
   /** Words in the email that point to phishing, for highlighting in the preview. */
   highlights?: string[];
   preview?: string | null;
+  /** Lowercased link hosts extracted during analysis (for local incident correlation). */
+  link_domains?: string[];
+  /** Full link URLs extracted during analysis. */
+  link_urls?: string[];
 }
 
 export interface WebsiteHistoryEntry {

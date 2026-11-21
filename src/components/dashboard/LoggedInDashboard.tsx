@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   Bot,
   AlertTriangle,
+  GitBranch,
 } from "lucide-react";
 
 import {
@@ -25,6 +26,11 @@ import {
   type ScanFinding,
   type SecurityScanEntry,
 } from "../../lib/scanActivity";
+import { openCyberAssistant } from "../../lib/assistant";
+import {
+  checkScannerReachable,
+  listIncidents,
+} from "../../lib/incidentsApi";
 
 const SAMPLE_ASSISTANT_QUESTION =
   "How can I tell if an email is phishing?";
@@ -85,6 +91,10 @@ function LoggedInDashboard() {
   const [sites, setSites] = useState<WebsiteHistoryEntry[]>([]);
   const [emails, setEmails] = useState<EmailScanEntry[]>([]);
   const [security, setSecurity] = useState<SecurityScanEntry[]>([]);
+  const [openIncidents, setOpenIncidents] = useState<
+    { id: string; title: string; severity: string }[]
+  >([]);
+  const [scannerReachable, setScannerReachable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -125,6 +135,40 @@ function LoggedInDashboard() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh when user changes
   }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadIncidents = async () => {
+      const reachable = await checkScannerReachable();
+      if (cancelled) return;
+      setScannerReachable(reachable);
+      if (!reachable) {
+        setOpenIncidents([]);
+        return;
+      }
+      try {
+        const rows = await listIncidents("open");
+        if (cancelled) return;
+        setOpenIncidents(
+          rows.slice(0, 3).map((row) => ({
+            id: row.id,
+            title: row.title,
+            severity: row.severity,
+          })),
+        );
+      } catch {
+        if (!cancelled) setOpenIncidents([]);
+      }
+    };
+
+    void loadIncidents();
+    const interval = window.setInterval(loadIncidents, POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -480,6 +524,55 @@ function LoggedInDashboard() {
           </button>
         </div>
 
+        {scannerReachable && (
+          <div className="dashboard-panel">
+            <div className="panel-title">
+              <GitBranch size={22} />
+              <div>
+                <h3>Open incidents</h3>
+                <p>
+                  {openIncidents.length === 0
+                    ? "No open correlated incidents"
+                    : `${openIncidents.length} open on this device`}
+                </p>
+              </div>
+            </div>
+
+            <div className="panel-list">
+              {openIncidents.length === 0 ? (
+                <div className="panel-row panel-empty">
+                  No open incidents right now.
+                </div>
+              ) : (
+                openIncidents.map((incident) => (
+                  <div className="panel-row" key={incident.id}>
+                    <span>{incident.title}</span>
+                    <span
+                      className={
+                        incident.severity === "HIGH"
+                          ? "status danger"
+                          : incident.severity === "MEDIUM"
+                            ? "status suspicious"
+                            : "status safe"
+                      }
+                    >
+                      {incident.severity}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <button
+              className="dashboard-button"
+              type="button"
+              onClick={() => navigate("/incidents")}
+            >
+              Open Incidents
+            </button>
+          </div>
+        )}
+
         <div className="dashboard-panel">
           <div className="panel-title">
             <Bot size={22} />
@@ -496,11 +589,7 @@ function LoggedInDashboard() {
           <button
             className="dashboard-button"
             type="button"
-            onClick={() =>
-              navigate(
-                `/cyber-assistant?q=${encodeURIComponent(SAMPLE_ASSISTANT_QUESTION)}`,
-              )
-            }
+            onClick={() => openCyberAssistant(SAMPLE_ASSISTANT_QUESTION)}
           >
             Ask Cyber Assistant
           </button>

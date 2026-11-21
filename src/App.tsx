@@ -2,9 +2,11 @@ import { lazy, Suspense, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import AlertNotifier from "./components/AlertNotifier";
+import AssistantPopup from "./components/AssistantPopup";
 import PageErrorBoundary from "./components/PageErrorBoundary";
 import Sidebar from "./components/Sidebar/Sidebar";
 import AuthModal from "./components/auth/AuthModal";
+import { openCyberAssistant } from "./lib/assistant";
 
 const Organization = lazy(() => import("./pages/Organization"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -13,6 +15,7 @@ const EmailScanner = lazy(() => import("./pages/EmailScanner"));
 const SecurityChecker = lazy(() => import("./pages/SecurityChecker"));
 const DeviceScanner = lazy(() => import("./pages/DeviceScanner"));
 const SystemGuardian = lazy(() => import("./pages/SystemGuardian"));
+const IncidentGraph = lazy(() => import("./pages/IncidentGraph"));
 const CyberAssistant = lazy(() => import("./pages/CyberAssistant"));
 const News = lazy(() => import("./pages/News"));
 const Reports = lazy(() => import("./pages/Reports"));
@@ -30,6 +33,7 @@ function App() {
 
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   const openLogin = () => {
     setAuthMode("login");
@@ -56,7 +60,12 @@ function App() {
           />
         )}
 
-        <Sidebar onLogin={openLogin} onSignUp={openSignUp} />
+        <Sidebar
+          onLogin={openLogin}
+          onSignUp={openSignUp}
+          onOpenAssistant={() => openCyberAssistant()}
+          assistantOpen={assistantOpen}
+        />
 
         <main className="main-content">
           <PageErrorBoundary key={location.pathname}>
@@ -116,6 +125,22 @@ function App() {
                   }
                 />
 
+                {/* Incidents - Login Required (local scanner) */}
+                <Route
+                  path="/incidents"
+                  element={
+                    loading ? (
+                      <div style={{ padding: "32px" }}>
+                        <p>Loading...</p>
+                      </div>
+                    ) : session ? (
+                      <IncidentGraph />
+                    ) : (
+                      <Navigate to="/dashboard" replace />
+                    )
+                  }
+                />
+
                 <Route path="/cyber-assistant" element={<CyberAssistant />} />
 
                 <Route path="/news" element={<News />} />
@@ -143,6 +168,8 @@ function App() {
           onClose={() => setAuthModalOpen(false)}
           startingMode={authMode}
         />
+
+        <AssistantPopup open={assistantOpen} onOpenChange={setAssistantOpen} />
       </div>
     </OrganizationPresenceProvider>
   );

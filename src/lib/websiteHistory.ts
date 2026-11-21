@@ -14,3 +14,6 @@ export function mergeHistorySnapshot(
   }
   return next;
 }
+
+/** Re-export for callers that sync history and want local correlation ingest. */
+export { pushWebsiteVisitEvents } from "./incidentEvents";

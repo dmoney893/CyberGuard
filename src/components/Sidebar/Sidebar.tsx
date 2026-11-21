@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   Monitor,
   Activity,
+  GitBranch,
   Bot,
   FileText,
   Newspaper,
@@ -23,9 +24,16 @@ import "./Sidebar.css";
 type SidebarProps = {
   onLogin: () => void;
   onSignUp: () => void;
+  onOpenAssistant: () => void;
+  assistantOpen?: boolean;
 };
 
-function Sidebar({ onLogin, onSignUp }: SidebarProps) {
+function Sidebar({
+  onLogin,
+  onSignUp,
+  onOpenAssistant,
+  assistantOpen = false,
+}: SidebarProps) {
   const { session, signOut } = useAuth();
   const { displayName, profile } = useProfile();
 
@@ -155,14 +163,23 @@ function Sidebar({ onLogin, onSignUp }: SidebarProps) {
         </NavLink>
 
         <NavLink
-          to="/cyber-assistant"
+          to="/incidents"
           className={({ isActive }) =>
             `nav-item ${isActive ? "active" : ""}`
           }
         >
+          <GitBranch size={18} />
+          <span>Incidents</span>
+        </NavLink>
+
+        <button
+          type="button"
+          className={`nav-item${assistantOpen ? " active" : ""}`}
+          onClick={onOpenAssistant}
+        >
           <Bot size={18} />
           <span>Cyber Assistant</span>
-        </NavLink>
+        </button>
 
 
         <NavLink

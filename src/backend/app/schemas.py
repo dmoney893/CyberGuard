@@ -70,6 +70,9 @@ class EmailResult(BaseModel):
     links: list[EmailLinkReport] = []
     highlights: list[str] = []
     preview: str | None = None
+    # Domains / URLs extracted from analyzed links (for local incident correlation).
+    link_domains: list[str] = []
+    link_urls: list[str] = []
 
 
 class GmailHeaderItem(BaseModel):

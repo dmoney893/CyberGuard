@@ -28,6 +28,7 @@ import {
   type EmailScanEntry,
   type ScanFinding,
 } from "../lib/scanActivity";
+import { pushEmailScanEvents } from "../lib/incidentEvents";
 import "./EmailScanner.css";
 
 const MAX_EMAILS = 50;
@@ -377,6 +378,7 @@ export default function EmailScanner() {
         source: item.source,
       })),
     );
+    pushEmailScanEvents(data);
     setMode("results");
     window.scrollTo?.({ top: 0 });
   };

@@ -22,6 +22,7 @@ Email Scanner's result cards.
 import re
 import warnings
 from pathlib import Path
+from urllib.parse import urlparse
 
 import joblib
 
@@ -137,6 +138,47 @@ def _preview(body: str) -> str:
     return text[:PREVIEW_CHARS] + ("…" if len(text) > PREVIEW_CHARS else "")
 
 
+def _extract_link_targets(
+    urls: list[str] | None,
+    links: list[dict] | None,
+) -> tuple[list[str], list[str]]:
+    """Return (link_urls, link_domains) from every analyzed destination."""
+
+    candidates: list[str] = []
+    for url in urls or []:
+        if isinstance(url, str) and url.strip():
+            candidates.append(url.strip())
+    for link in links or []:
+        if not isinstance(link, dict):
+            continue
+        href = link.get("href")
+        if isinstance(href, str) and href.strip():
+            candidates.append(href.strip())
+
+    link_urls: list[str] = []
+    link_domains: list[str] = []
+    seen_urls: set[str] = set()
+    seen_domains: set[str] = set()
+
+    for url in candidates:
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        link_urls.append(url)
+
+        try:
+            host = (urlparse(url).hostname or "").strip().lower()
+        except Exception:
+            host = ""
+        if host.startswith("www."):
+            host = host[4:]
+        if host and host not in seen_domains:
+            seen_domains.add(host)
+            link_domains.append(host)
+
+    return link_urls, link_domains
+
+
 def analyze_email(
     sender: str,
     subject: str,
@@ -160,10 +202,16 @@ def analyze_email(
     link_info = email_checks.analyze_links(links or [], urls, email_checks.domain_of(sender))
     sender_info = email_checks.analyze_sender(sender, display_name, headers)
     checks = sender_info["checks"] + link_info["checks"]
+    # Pull every destination from the body/links, not only the risky subset
+    # returned in link_info["reports"] (that list drops verdict == "ok").
+    link_urls, link_domains = _extract_link_targets(urls, links)
+
     extra = {
         "checks": checks,
         "links": link_info["reports"],
         "preview": _preview(body),
+        "link_domains": link_domains,
+        "link_urls": link_urls,
     }
 
     if not text:

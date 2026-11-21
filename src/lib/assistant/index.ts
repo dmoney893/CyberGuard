@@ -1,4 +1,4 @@
-import { localGuidedProvider } from "./localGuidedProvider";
+import { generativeProvider } from "./generativeProvider";
 import type { AssistantReplyProvider } from "./types";
 
 export type {
@@ -6,9 +6,13 @@ export type {
   AssistantReplyProvider,
   AssistantRole,
 } from "./types";
-export { SUGGESTED_PROMPTS } from "./types";
+export {
+  OPEN_ASSISTANT_EVENT,
+  openCyberAssistant,
+  type OpenAssistantDetail,
+} from "./events";
 
 /**
- * Local guided knowledge base + CyberGuard page redirects.
+ * Generative Cyber Assistant (Groq) with local knowledge-base fallback.
  */
-export const assistantProvider: AssistantReplyProvider = localGuidedProvider;
+export const assistantProvider: AssistantReplyProvider = generativeProvider;

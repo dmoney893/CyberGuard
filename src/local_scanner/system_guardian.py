@@ -103,6 +103,7 @@ def get_running_processes():
             "status",
             "cpu_times",
             "exe",
+            "cmdline",
         ])
     )
 
@@ -174,6 +175,19 @@ def get_running_processes():
 
                 parent_pid = info.get("ppid")
 
+                cmdline = info.get("cmdline")
+                if isinstance(cmdline, (list, tuple)):
+                    cmdline_text = " ".join(
+                        str(part) for part in cmdline
+                    ).strip()
+                elif cmdline:
+                    cmdline_text = str(cmdline).strip()
+                else:
+                    cmdline_text = None
+
+                if cmdline_text and len(cmdline_text) > 500:
+                    cmdline_text = cmdline_text[:499] + "…"
+
                 processes.append({
                     "pid": pid,
                     "name": info.get("name") or "Unknown",
@@ -185,6 +199,7 @@ def get_running_processes():
                     "executable": info.get("exe"),
                     "parent_pid": parent_pid,
                     "parent_name": parent_names.get(parent_pid),
+                    "cmdline": cmdline_text,
                 })
 
             except (
