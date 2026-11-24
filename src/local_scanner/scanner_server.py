@@ -6,7 +6,7 @@ import platform
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
 from windows_scanner import scan_windows
 from mac_scanner import scan_mac
 from malware_scanner import start_scan, scan_status, cancel_scan
@@ -36,6 +36,10 @@ from security_timeline import (
 )
 
 from process_network import get_process_network_connections
+from startup_manager import (
+    get_startup_applications,
+    set_startup_application_state
+)
 
 app = FastAPI(title="CyberGuard Local Scanner")
 
@@ -94,6 +98,9 @@ class ScanRequest(BaseModel):
     folder: str = "downloads"
 class FolderRequest(BaseModel):
     path: str
+class StartupStateRequest(BaseModel):
+    application_id: str
+    enabled: StrictBool
 
 
 @app.post("/choose-folder")
@@ -294,6 +301,55 @@ def system_network_connections(
         raise HTTPException(
             status_code=500,
             detail="Unable to retrieve network connections.",
+        )
+@app.get("/system/startup-applications")
+def system_startup_applications(
+    _=Depends(require_local_frontend),
+):
+    try:
+        return get_startup_applications()
+
+    except Exception:
+        import logging
+        logging.exception("Startup application collection failed")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve startup applications."
+        )
+        
+@app.post("/system/startup-applications/state")
+def update_startup_application_state(
+    request: StartupStateRequest,
+    _=Depends(require_local_frontend),
+):
+    try:
+        application = set_startup_application_state(
+            request.application_id,
+            request.enabled
+        )
+
+        return {
+            "success": True,
+            "application": application
+        }
+
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=403,
+            detail=str(error)
+        )
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to update startup application."
         )
 
 @app.get("/system/processes/{pid}")

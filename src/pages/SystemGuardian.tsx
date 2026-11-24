@@ -26,6 +26,7 @@ import {
 import "./SystemGuardian.css";
 import SecurityEventTimeline from "./SecurityEventTimeline";
 import ProcessNetworkActivity from "./ProcessNetworkActivity";
+import StartupApplications from "./StartupApplications";
 
 const API_URL = "http://127.0.0.1:8765";
 
@@ -1394,6 +1395,7 @@ const confirmProcessTermination = async () => {
           <SecurityEventTimeline />
 
           <ProcessNetworkActivity processes={processes} />
+          <StartupApplications />
 
           {/*BACKGROUND PROCESS MANAGER*/}
           {/* PROCESS SECURITY ANALYSIS */}
