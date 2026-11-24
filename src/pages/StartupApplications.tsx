@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Power, RefreshCw, Search, Lock, Info } from "lucide-react";
+import { Power, RefreshCw, Search, Lock, Info, ShieldCheck } from "lucide-react";
 import "./StartupApplications.css";
 
 const API_URL = "http://127.0.0.1:8765";
@@ -15,6 +15,7 @@ type StartupApplication = {
   category: string;
   enabled: boolean | null;
   manageable: boolean;
+  approval_eligible?: boolean;
   publisher?: string;
   installed_name?: string;
 };
@@ -141,6 +142,92 @@ export default function StartupApplications() {
         err instanceof Error
           ? err.message
           : "Unable to update startup application."
+      );
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const approveApplication = async (
+    application: StartupApplication
+  ) => {
+    if (
+      !application.approval_eligible ||
+      application.manageable ||
+      updating !== null ||
+      loading ||
+      error
+    ) {
+      return;
+    }
+
+    setUpdating(application.id);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/system/startup-applications/approve`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            application_id: application.id,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        if (result.detail === "Approval cancelled.") {
+          return;
+        }
+
+        throw new Error(
+          typeof result.detail === "string"
+            ? result.detail
+            : "Unable to approve startup application."
+        );
+      }
+
+      setData((previous) => {
+        if (!previous) return previous;
+
+        const applications = previous.applications.map((item) =>
+          item.id === application.id
+            ? { ...item, ...result.application }
+            : item
+        );
+
+        return {
+          ...previous,
+          applications,
+          summary: {
+            total: applications.length,
+            enabled: applications.filter(
+              (item) => item.enabled === true
+            ).length,
+            disabled: applications.filter(
+              (item) => item.enabled === false
+            ).length,
+            unknown: applications.filter(
+              (item) => item.enabled === null
+            ).length,
+          },
+        };
+      });
+
+      setMessage(
+        `Startup management approved for ${application.name}.`
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to approve startup application."
       );
     } finally {
       setUpdating(null);
@@ -354,6 +441,32 @@ export default function StartupApplications() {
                               }
                             >
                               <span />
+                            </button>
+                          ) : application.approval_eligible ? (
+                            <button
+                              type="button"
+                              className="startup-approve-button"
+                              disabled={
+                                updating !== null ||
+                                loading ||
+                                Boolean(error)
+                              }
+                              onClick={() =>
+                                void approveApplication(application)
+                              }
+                            >
+                              {updating === application.id ? (
+                                <RefreshCw
+                                  size={14}
+                                  className="startup-spinning"
+                                />
+                              ) : (
+                                <ShieldCheck size={14} />
+                              )}
+
+                              {updating === application.id
+                                ? "Awaiting Approval"
+                                : "Allow Management"}
                             </button>
                           ) : (
                             <div

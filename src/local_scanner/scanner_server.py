@@ -38,10 +38,12 @@ from security_timeline import (
 from process_network import get_process_network_connections
 from startup_manager import (
     get_startup_applications,
-    set_startup_application_state
+    set_startup_application_state,
+    approve_startup_application
 )
 
 app = FastAPI(title="CyberGuard Local Scanner")
+startup_approval_lock = Lock()
 
 process_executor = ThreadPoolExecutor(max_workers=1)
 process_cache_lock = Lock()
@@ -101,6 +103,8 @@ class FolderRequest(BaseModel):
 class StartupStateRequest(BaseModel):
     application_id: str
     enabled: StrictBool
+class StartupApprovalRequest(BaseModel):
+    application_id: str
 
 
 @app.post("/choose-folder")
@@ -317,7 +321,49 @@ def system_startup_applications(
             status_code=500,
             detail="Unable to retrieve startup applications."
         )
-        
+
+@app.post("/system/startup-applications/approve")
+def approve_system_startup_application(
+    request: StartupApprovalRequest,
+    _=Depends(require_local_frontend),
+):
+    if not startup_approval_lock.acquire(blocking=False):
+        raise HTTPException(
+            status_code=409,
+            detail="Another approval request is already in progress."
+        )
+
+    try:
+        application = approve_startup_application(
+            request.application_id
+        )
+
+        return {
+            "success": True,
+            "application": application
+        }
+
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=403,
+            detail=str(error)
+        )
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to approve startup application."
+        )
+
+    finally:
+        startup_approval_lock.release()
+
 @app.post("/system/startup-applications/state")
 def update_startup_application_state(
     request: StartupStateRequest,
