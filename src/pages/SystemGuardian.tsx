@@ -26,6 +26,7 @@ import {
 import "./SystemGuardian.css";
 import SecurityEventTimeline from "./SecurityEventTimeline";
 import ProcessNetworkActivity from "./ProcessNetworkActivity";
+import StartupApplications from "./StartupApplications";
 
 import AgentPairing from "../components/AgentPairing";
 import {
@@ -1411,6 +1412,7 @@ const confirmProcessTermination = async () => {
           <SecurityEventTimeline />
 
           <ProcessNetworkActivity processes={processes} />
+          <StartupApplications />
 
           {/*BACKGROUND PROCESS MANAGER*/}
           {/* PROCESS SECURITY ANALYSIS */}

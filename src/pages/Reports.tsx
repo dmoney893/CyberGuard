@@ -3,6 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
+  ArrowDownRight,
+  ArrowRightLeft,
+  ArrowUpRight,
   AtSign,
   CalendarDays,
   CheckCircle2,
@@ -15,6 +18,7 @@ import {
   KeyRound,
   Laptop,
   Mail,
+  Minus,
   Newspaper,
   Phone,
   Printer,
@@ -32,6 +36,7 @@ import {
   SCAN_ACTIVITY_EVENT,
   listEmailScans,
   listSecurityScans,
+  listSharedReportActivity,
   syncEmailScans,
   emailFindingFromClassification,
   type EmailScanEntry,
@@ -211,60 +216,6 @@ const emailToReportItem = (entry: EmailScanEntry): ReportItem => ({
   source: "email_scanner",
 });
 
-function getDeviceReportFinding(
-  entry: SecurityScanEntry
-): Finding {
-  if (
-    entry.checkType !== "device" ||
-    !entry.title.toLowerCase().includes("device security scan")
-  ) {
-    return entry.finding;
-  }
-
-  const getStatus = (name: string) => {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = entry.detail.match(
-      new RegExp(`${escaped}:\\s*([^·]+)`, "i")
-    );
-    return match?.[1]?.trim().toLowerCase();
-  };
-
-  const isMac = entry.title.toLowerCase().includes("macos");
-
-  const firstStatus = isMac
-    ? getStatus("Gatekeeper")
-    : getStatus("Antivirus");
-
-  const secondStatus = isMac
-    ? getStatus("SIP")
-    : getStatus("Firewall");
-
-  const isProtected = (status?: string) =>
-    status === "protected";
-
-  const isUnprotected = (status?: string) =>
-    ["warning", "unprotected", "not protected", "disabled"].includes(
-      status ?? ""
-    );
-
-  if (isProtected(firstStatus) && isProtected(secondStatus)) {
-    return "safe";
-  }
-
-  if (isUnprotected(firstStatus) && isUnprotected(secondStatus)) {
-    return "high";
-  }
-
-  if (
-    (isProtected(firstStatus) && isUnprotected(secondStatus)) ||
-    (isUnprotected(firstStatus) && isProtected(secondStatus))
-  ) {
-    return "suspicious";
-  }
-
-  return "unverified";
-}
-
 const securityToReportItem = (entry: SecurityScanEntry): ReportItem => {
   const category = SECURITY_CATEGORY[entry.checkType];
   const isPassword = entry.checkType === "password";
@@ -274,7 +225,7 @@ const securityToReportItem = (entry: SecurityScanEntry): ReportItem => {
     category,
     title: entry.title,
     detail: isPassword ? "Password value not stored in report" : entry.detail,
-    finding: getDeviceReportFinding(entry),
+    finding: entry.finding,
     occurredAt: entry.occurredAt,
     source: securitySourceOf(entry.checkType),
     passwordStrength: isPassword ? passwordStrengthOf(entry) : undefined,
@@ -320,6 +271,251 @@ const inRange = (iso: string, range: Range, start: string, end: string) => {
   );
 };
 
+const periodLabelOf = (range: Range, start: string, end: string) =>
+  range === "today"
+    ? "Today"
+    : range === "yesterday"
+      ? "Yesterday"
+      : range === "7days"
+        ? "Last 7 days"
+        : range === "30days"
+          ? "Last 30 days"
+          : range === "all"
+            ? "All time"
+            : `${start || "Start"} to ${end || "End"}`;
+
+type ComparePreset =
+  | "today_vs_yesterday"
+  | "7_vs_prior"
+  | "30_vs_prior"
+  | "custom";
+
+type DateWindow = {
+  startMs: number;
+  endMs: number;
+  label: string;
+  detail: string;
+};
+
+const DAY_MS = 86400000;
+
+const startOfDaysAgo = (daysAgo: number, from = new Date()) =>
+  new Date(
+    from.getFullYear(),
+    from.getMonth(),
+    from.getDate() - daysAgo,
+  ).getTime();
+
+const endOfDayMs = (startMs: number) => startMs + DAY_MS - 1;
+
+const toDateInput = (ms: number) => {
+  const date = new Date(ms);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const shortDate = (ms: number) =>
+  new Date(ms).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+
+const windowDetail = (startMs: number, endMs: number) =>
+  `${shortDate(startMs)} – ${shortDate(endMs)}`;
+
+const parseDateStart = (value: string) =>
+  value ? new Date(`${value}T00:00:00`).getTime() : Number.NaN;
+
+const parseDateEnd = (value: string) =>
+  value ? new Date(`${value}T23:59:59.999`).getTime() : Number.NaN;
+
+const inWindow = (iso: string, startMs: number, endMs: number) => {
+  const value = Date.parse(iso);
+  return Number.isFinite(value) && value >= startMs && value <= endMs;
+};
+
+const rollingWindows = (days: number) => {
+  const laterStartMs = startOfDaysAgo(days - 1);
+  const earlierEndStartMs = startOfDaysAgo(days);
+  const earlierStartMs = startOfDaysAgo(days * 2 - 1);
+  const endOfToday = endOfDayMs(startOfDaysAgo(0));
+
+  return {
+    earlier: {
+      startMs: earlierStartMs,
+      endMs: endOfDayMs(earlierEndStartMs),
+      label: `Prior ${days} days`,
+      detail: windowDetail(earlierStartMs, earlierEndStartMs),
+    },
+    later: {
+      startMs: laterStartMs,
+      endMs: endOfToday,
+      label: `Last ${days} days`,
+      detail: windowDetail(laterStartMs, endOfToday),
+    },
+  };
+};
+
+const compareWindowsOf = (
+  preset: ComparePreset,
+  earlierStart: string,
+  earlierEnd: string,
+  laterStart: string,
+  laterEnd: string,
+): { earlier: DateWindow; later: DateWindow } => {
+  const today = startOfDaysAgo(0);
+  const yesterday = startOfDaysAgo(1);
+
+  if (preset === "today_vs_yesterday") {
+    return {
+      earlier: {
+        startMs: yesterday,
+        endMs: endOfDayMs(yesterday),
+        label: "Yesterday",
+        detail: shortDate(yesterday),
+      },
+      later: {
+        startMs: today,
+        endMs: endOfDayMs(today),
+        label: "Today",
+        detail: shortDate(today),
+      },
+    };
+  }
+
+  if (preset === "7_vs_prior") return rollingWindows(7);
+  if (preset === "30_vs_prior") return rollingWindows(30);
+
+  const earlierStartMs = parseDateStart(earlierStart);
+  const earlierEndMs = parseDateEnd(earlierEnd);
+  const laterStartMs = parseDateStart(laterStart);
+  const laterEndMs = parseDateEnd(laterEnd);
+  const earlierValid =
+    Number.isFinite(earlierStartMs) && Number.isFinite(earlierEndMs);
+  const laterValid =
+    Number.isFinite(laterStartMs) && Number.isFinite(laterEndMs);
+
+  return {
+    earlier: {
+      startMs: earlierValid ? earlierStartMs : Number.NaN,
+      endMs: earlierValid ? earlierEndMs : Number.NaN,
+      label: "Earlier period",
+      detail: earlierValid
+        ? windowDetail(earlierStartMs, earlierEndMs)
+        : "Pick dates",
+    },
+    later: {
+      startMs: laterValid ? laterStartMs : Number.NaN,
+      endMs: laterValid ? laterEndMs : Number.NaN,
+      label: "Later period",
+      detail: laterValid
+        ? windowDetail(laterStartMs, laterEndMs)
+        : "Pick dates",
+    },
+  };
+};
+
+const defaultComparePreset = (current: Range): ComparePreset => {
+  if (current === "today" || current === "yesterday") {
+    return "today_vs_yesterday";
+  }
+  if (current === "7days") return "7_vs_prior";
+  return "30_vs_prior";
+};
+
+type ReportMetrics = {
+  total: number;
+  safe: number;
+  suspicious: number;
+  high: number;
+  unverified: number;
+  info: number;
+  flagged: number;
+  avgWebsiteScore: number | null;
+  byCategory: Record<
+    Category,
+    {
+      total: number;
+      flagged: number;
+    }
+  >;
+};
+
+const emptyCategoryMetrics = (): ReportMetrics["byCategory"] =>
+  Object.fromEntries(
+    CATEGORIES.map(({ id }) => [id, { total: 0, flagged: 0 }]),
+  ) as ReportMetrics["byCategory"];
+
+const metricsOf = (items: ReportItem[]): ReportMetrics => {
+  const byCategory = emptyCategoryMetrics();
+  let safe = 0;
+  let suspicious = 0;
+  let high = 0;
+  let unverified = 0;
+  let info = 0;
+  let scoreSum = 0;
+  let scoreCount = 0;
+
+  for (const item of items) {
+    byCategory[item.category].total += 1;
+    if (item.finding === "high" || item.finding === "suspicious") {
+      byCategory[item.category].flagged += 1;
+    }
+    if (item.finding === "safe") safe += 1;
+    else if (item.finding === "suspicious") suspicious += 1;
+    else if (item.finding === "high") high += 1;
+    else if (item.finding === "unverified") unverified += 1;
+    else if (item.finding === "info") info += 1;
+    if (item.category === "websites" && typeof item.score === "number") {
+      scoreSum += item.score;
+      scoreCount += 1;
+    }
+  }
+
+  return {
+    total: items.length,
+    safe,
+    suspicious,
+    high,
+    unverified,
+    info,
+    flagged: suspicious + high,
+    avgWebsiteScore:
+      scoreCount > 0 ? Math.round(scoreSum / scoreCount) : null,
+    byCategory,
+  };
+};
+
+const dedupeReportItems = (items: ReportItem[]) => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+};
+
+const deltaOf = (later: number, earlier: number) => later - earlier;
+
+const formatSigned = (value: number) =>
+  value > 0 ? `+${value}` : String(value);
+
+type TrendTone = "better" | "worse" | "neutral";
+
+const riskTone = (delta: number): TrendTone => {
+  if (delta < 0) return "better";
+  if (delta > 0) return "worse";
+  return "neutral";
+};
+
+const TrendIcon = ({ tone }: { tone: TrendTone }) => {
+  if (tone === "better") return <ArrowDownRight size={14} />;
+  if (tone === "worse") return <ArrowUpRight size={14} />;
+  return <Minus size={14} />;
+};
+
 const csvEscape = (value: unknown) =>
   `"${String(value ?? "").replaceAll('"', '""')}"`;
 
@@ -363,6 +559,13 @@ function ReportsContent() {
   const [range, setRange] = useState<Range>("today");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const [compareMode, setCompareMode] = useState(false);
+  const [comparePreset, setComparePreset] =
+    useState<ComparePreset>("30_vs_prior");
+  const [compareEarlierStart, setCompareEarlierStart] = useState("");
+  const [compareEarlierEnd, setCompareEarlierEnd] = useState("");
+  const [compareLaterStart, setCompareLaterStart] = useState("");
+  const [compareLaterEnd, setCompareLaterEnd] = useState("");
   const [search, setSearch] = useState("");
 
   const [selectedCategory, setSelectedCategory] = useState<Category | "all">(
@@ -370,6 +573,32 @@ function ReportsContent() {
   );
 
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  const allItems = useMemo(
+    () =>
+      [...websites, ...emails, ...security, ...news].sort(
+        (a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt),
+      ),
+    [websites, emails, security, news],
+  );
+
+  const applySelfLocalActivity = (
+    shared: Awaited<ReturnType<typeof listSharedReportActivity>> = [],
+  ) => {
+    if (!userId || viewingMember) return;
+
+    const localEmails = listEmailScans(userId).map(emailToReportItem);
+    const localSecurity = listSecurityScans(userId).map(securityToReportItem);
+    const sharedEmails = shared
+      .filter((entry) => entry.kind === "email")
+      .map((entry) => emailToReportItem(entry));
+    const sharedSecurity = shared
+      .filter((entry) => entry.kind === "security")
+      .map((entry) => securityToReportItem(entry));
+
+    setEmails(dedupeReportItems([...localEmails, ...sharedEmails]));
+    setSecurity(dedupeReportItems([...localSecurity, ...sharedSecurity]));
+  };
 
   const refreshLocalActivity = () => {
     if (!userId) {
@@ -379,12 +608,27 @@ function ReportsContent() {
     }
     if (viewingMember) return;
 
-    setEmails(listEmailScans(userId).map(emailToReportItem));
-    setSecurity(listSecurityScans(userId).map(securityToReportItem));
+    applySelfLocalActivity();
+    void listSharedReportActivity(userId)
+      .then((shared) => {
+        if (!viewingMember) applySelfLocalActivity(shared);
+      })
+      .catch((error) => {
+        console.warn(
+          "CyberGuard: couldn't load shared report activity.",
+          error instanceof Error ? error.message : error,
+        );
+      });
   };
 
-  // Email Scanner + Security Checker history (localStorage + Supabase emails).
+  // Email Scanner + Security Checker + Device Scanner (local + shared).
   useEffect(() => {
+    if (viewingMember) {
+      setEmails([]);
+      setSecurity([]);
+      return;
+    }
+
     refreshLocalActivity();
     if (userId) void syncEmailScans(userId).then(refreshLocalActivity);
     const onActivity = () => refreshLocalActivity();
@@ -399,7 +643,7 @@ function ReportsContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh when user changes
   }, [userId, viewingMember]);
 
-  // Website Tracker history + news reading activity.
+  // Website Tracker history + news reading activity (+ member org data).
   useEffect(() => {
     if (!session?.access_token || !userId || !viewedUserId) {
       setWebsites([]);
@@ -424,6 +668,7 @@ function ReportsContent() {
           memberActivity,
           member,
           profile,
+          sharedSelf,
         ] =
           viewingMember
             ? await Promise.all([
@@ -467,27 +712,58 @@ function ReportsContent() {
                   .select("first_name,last_name,username")
                   .eq("id", viewedUserId)
                   .maybeSingle(),
+                Promise.resolve({ data: [] as Awaited<
+                  ReturnType<typeof listSharedReportActivity>
+                >, error: null }),
               ])
-            : [
-                {
-                  data: await listWebsiteHistory(1000, session?.access_token ?? ""),
-                  error: null,
-                },
-                { data: await fetchNewsActivity(userId!).catch(() => []), error: null },
-                { data: [], error: null },
-                { data: [], error: null },
-                { data: null, error: null },
-                { data: null, error: null },
-              ];
+            : await Promise.all([
+                listWebsiteHistory(1000, session?.access_token ?? "")
+                  .then((data) => ({ data, error: null as Error | null }))
+                  .catch((error: unknown) => ({
+                    data: [] as Awaited<ReturnType<typeof listWebsiteHistory>>,
+                    error:
+                      error instanceof Error
+                        ? error
+                        : new Error("Unable to load website history."),
+                  })),
+                fetchNewsActivity(userId!)
+                  .then((data) => ({ data, error: null as Error | null }))
+                  .catch((error: unknown) => ({
+                    data: [] as Awaited<ReturnType<typeof fetchNewsActivity>>,
+                    error:
+                      error instanceof Error
+                        ? error
+                        : new Error("Unable to load news activity."),
+                  })),
+                Promise.resolve({ data: [], error: null }),
+                Promise.resolve({ data: [], error: null }),
+                Promise.resolve({ data: null, error: null }),
+                Promise.resolve({ data: null, error: null }),
+                listSharedReportActivity(userId!)
+                  .then((data) => ({ data, error: null as Error | null }))
+                  .catch((error: unknown) => ({
+                    data: [] as Awaited<
+                      ReturnType<typeof listSharedReportActivity>
+                    >,
+                    error:
+                      error instanceof Error
+                        ? error
+                        : new Error("Unable to load shared activity."),
+                  })),
+              ]);
 
-        const failure =
-          history.error ??
-          newsActivity.error ??
-          memberEmails.error ??
-          memberActivity.error ??
-          member.error ??
-          profile.error;
-        if (failure) throw failure;
+        const failures = [
+          history.error,
+          newsActivity.error,
+          memberEmails.error,
+          memberActivity.error,
+          member.error,
+          profile.error,
+          sharedSelf.error,
+        ].filter(Boolean);
+        if (failures.length && viewingMember) {
+          throw failures[0];
+        }
 
         if (cancelled) return;
 
@@ -553,6 +829,8 @@ function ReportsContent() {
                 });
               }),
           );
+        } else {
+          applySelfLocalActivity(sharedSelf.data ?? []);
         }
         setNews(
           (newsActivity.data ?? [])
@@ -573,7 +851,18 @@ function ReportsContent() {
               notes: item.article.summary ? [item.article.summary] : undefined,
             })),
         );
-        setLoadError("");
+
+        if (!viewingMember && failures.length) {
+          setLoadError(
+            failures
+              .map((error) =>
+                error instanceof Error ? error.message : String(error),
+              )
+              .join(" · "),
+          );
+        } else {
+          setLoadError("");
+        }
       } catch (error) {
         if (!cancelled) {
           setLoadError(
@@ -586,7 +875,6 @@ function ReportsContent() {
         requestInFlight = false;
         if (!cancelled) {
           setLoading(false);
-          if (!viewingMember) refreshLocalActivity();
         }
       }
     }
@@ -609,24 +897,61 @@ function ReportsContent() {
 
   const items = useMemo(
     () =>
-      [...websites, ...emails, ...security, ...news]
-        .filter((item) => inRange(item.occurredAt, range, start, end))
-        .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)),
-    [websites, emails, security, news, range, start, end],
+      allItems.filter((item) => inRange(item.occurredAt, range, start, end)),
+    [allItems, range, start, end],
   );
 
-  const flagged = items.filter(
-    (item) => item.finding === "high" || item.finding === "suspicious",
+  const compareWindows = useMemo(
+    () =>
+      compareWindowsOf(
+        comparePreset,
+        compareEarlierStart,
+        compareEarlierEnd,
+        compareLaterStart,
+        compareLaterEnd,
+      ),
+    [
+      comparePreset,
+      compareEarlierStart,
+      compareEarlierEnd,
+      compareLaterStart,
+      compareLaterEnd,
+    ],
   );
 
-  const counts = useMemo(
-    () => ({
-      safe: items.filter((item) => item.finding === "safe").length,
-      suspicious: items.filter((item) => item.finding === "suspicious").length,
-      high: items.filter((item) => item.finding === "high").length,
-    }),
-    [items],
+  const earlierItems = useMemo(
+    () =>
+      Number.isFinite(compareWindows.earlier.startMs)
+        ? allItems.filter((item) =>
+            inWindow(
+              item.occurredAt,
+              compareWindows.earlier.startMs,
+              compareWindows.earlier.endMs,
+            ),
+          )
+        : [],
+    [allItems, compareWindows],
   );
+
+  const laterItems = useMemo(
+    () =>
+      Number.isFinite(compareWindows.later.startMs)
+        ? allItems.filter((item) =>
+            inWindow(
+              item.occurredAt,
+              compareWindows.later.startMs,
+              compareWindows.later.endMs,
+            ),
+          )
+        : [],
+    [allItems, compareWindows],
+  );
+
+  const counts = useMemo(() => metricsOf(items), [items]);
+  const earlierMetrics = useMemo(() => metricsOf(earlierItems), [earlierItems]);
+  const laterMetrics = useMemo(() => metricsOf(laterItems), [laterItems]);
+
+  const flagged = counts.flagged;
 
   const shown = useMemo(
     () =>
@@ -650,18 +975,61 @@ function ReportsContent() {
     [items, selectedCategory, search],
   );
 
-  const periodLabel =
-    range === "today"
-      ? "Today"
-      : range === "yesterday"
-        ? "Yesterday"
-        : range === "7days"
-          ? "Last 7 days"
-          : range === "30days"
-            ? "Last 30 days"
-            : range === "all"
-              ? "All time"
-              : `${start || "Start"} to ${end || "End"}`;
+  const periodLabel = periodLabelOf(range, start, end);
+  const earlierLabel = compareWindows.earlier.label;
+  const laterLabel = compareWindows.later.label;
+  const earlierDetail = compareWindows.earlier.detail;
+  const laterDetail = compareWindows.later.detail;
+  const compareHasData =
+    earlierMetrics.total > 0 || laterMetrics.total > 0;
+
+  const compareDeltas = useMemo(() => {
+    const flaggedDelta = deltaOf(laterMetrics.flagged, earlierMetrics.flagged);
+    const highDelta = deltaOf(laterMetrics.high, earlierMetrics.high);
+    const suspiciousDelta = deltaOf(
+      laterMetrics.suspicious,
+      earlierMetrics.suspicious,
+    );
+    const safeDelta = deltaOf(laterMetrics.safe, earlierMetrics.safe);
+    const totalDelta = deltaOf(laterMetrics.total, earlierMetrics.total);
+    const scoreDelta =
+      laterMetrics.avgWebsiteScore !== null &&
+      earlierMetrics.avgWebsiteScore !== null
+        ? deltaOf(laterMetrics.avgWebsiteScore, earlierMetrics.avgWebsiteScore)
+        : null;
+
+    let verdict: "improved" | "declined" | "stable" | "empty" = "stable";
+    let reason: "flagged" | "score" | "none" | "empty" = "none";
+    if (earlierMetrics.total === 0 && laterMetrics.total === 0) {
+      verdict = "empty";
+      reason = "empty";
+    } else if (highDelta < 0 || (highDelta === 0 && flaggedDelta < 0)) {
+      verdict = "improved";
+      reason = "flagged";
+    } else if (highDelta > 0 || (highDelta === 0 && flaggedDelta > 0)) {
+      verdict = "declined";
+      reason = "flagged";
+    } else if (
+      scoreDelta !== null &&
+      scoreDelta !== 0 &&
+      highDelta === 0 &&
+      flaggedDelta === 0
+    ) {
+      verdict = scoreDelta < 0 ? "improved" : "declined";
+      reason = "score";
+    }
+
+    return {
+      flaggedDelta,
+      highDelta,
+      suspiciousDelta,
+      safeDelta,
+      totalDelta,
+      scoreDelta,
+      verdict,
+      reason,
+    };
+  }, [earlierMetrics, laterMetrics]);
 
   const exportRows = shown.map((item) => ({
     category: item.category,
@@ -674,7 +1042,36 @@ function ReportsContent() {
     notes: (item.notes ?? []).join("; "),
   }));
 
-  const exportJson = () =>
+  const exportJson = () => {
+    if (compareMode) {
+      download(
+        "cyberguard-security-compare.json",
+        JSON.stringify(
+          {
+            mode: "compare",
+            earlier_period: earlierLabel,
+            later_period: laterLabel,
+            generated_at: new Date().toISOString(),
+            verdict: compareDeltas.verdict,
+            earlier: earlierMetrics,
+            later: laterMetrics,
+            deltas: {
+              total: compareDeltas.totalDelta,
+              safe: compareDeltas.safeDelta,
+              suspicious: compareDeltas.suspiciousDelta,
+              high: compareDeltas.highDelta,
+              flagged: compareDeltas.flaggedDelta,
+              avg_website_score: compareDeltas.scoreDelta,
+            },
+          },
+          null,
+          2,
+        ),
+        "application/json",
+      );
+      return;
+    }
+
     download(
       "cyberguard-security-report.json",
       JSON.stringify(
@@ -688,8 +1085,81 @@ function ReportsContent() {
       ),
       "application/json",
     );
+  };
 
   const exportCsv = () => {
+    if (compareMode) {
+      const headers = [
+        "metric",
+        "earlier",
+        "later",
+        "delta",
+        "earlier_period",
+        "later_period",
+      ] as const;
+
+      const rows = [
+        ["total", earlierMetrics.total, laterMetrics.total, compareDeltas.totalDelta],
+        ["safe", earlierMetrics.safe, laterMetrics.safe, compareDeltas.safeDelta],
+        [
+          "suspicious",
+          earlierMetrics.suspicious,
+          laterMetrics.suspicious,
+          compareDeltas.suspiciousDelta,
+        ],
+        ["high", earlierMetrics.high, laterMetrics.high, compareDeltas.highDelta],
+        [
+          "flagged",
+          earlierMetrics.flagged,
+          laterMetrics.flagged,
+          compareDeltas.flaggedDelta,
+        ],
+        [
+          "avg_website_score",
+          earlierMetrics.avgWebsiteScore ?? "",
+          laterMetrics.avgWebsiteScore ?? "",
+          compareDeltas.scoreDelta ?? "",
+        ],
+        ...CATEGORIES.flatMap(({ id, label }) => {
+          const earlier = earlierMetrics.byCategory[id];
+          const later = laterMetrics.byCategory[id];
+          return [
+            [
+              `${label} total`,
+              earlier.total,
+              later.total,
+              deltaOf(later.total, earlier.total),
+            ],
+            [
+              `${label} flagged`,
+              earlier.flagged,
+              later.flagged,
+              deltaOf(later.flagged, earlier.flagged),
+            ],
+          ];
+        }),
+      ];
+
+      download(
+        "cyberguard-security-compare.csv",
+        [
+          headers.join(","),
+          ...rows.map((row) =>
+            [
+              csvEscape(row[0]),
+              csvEscape(row[1]),
+              csvEscape(row[2]),
+              csvEscape(row[3]),
+              csvEscape(earlierLabel),
+              csvEscape(laterLabel),
+            ].join(","),
+          ),
+        ].join("\r\n"),
+        "text/csv;charset=utf-8",
+      );
+      return;
+    }
+
     const headers = [
       "category",
       "title",
@@ -711,6 +1181,47 @@ function ReportsContent() {
       ].join("\r\n"),
       "text/csv;charset=utf-8",
     );
+  };
+
+  const enterCompareMode = () => {
+    // Prefer a window that can include older scans when the current view is empty.
+    const preset =
+      range === "custom"
+        ? "custom"
+        : items.length === 0
+          ? "30_vs_prior"
+          : defaultComparePreset(range);
+    setComparePreset(preset);
+
+    if (range === "custom" && start && end) {
+      const startMs = parseDateStart(start);
+      const endMs = parseDateEnd(end);
+      if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs) {
+        const startDay = dayStart(new Date(startMs));
+        const endDay = dayStart(new Date(endMs));
+        const spanDays = Math.max(
+          1,
+          Math.round((endDay - startDay) / DAY_MS) + 1,
+        );
+        const priorEnd = startOfDaysAgo(
+          Math.round((dayStart(new Date()) - startDay) / DAY_MS) + 1,
+        );
+        const priorStart = startOfDaysAgo(
+          Math.round((dayStart(new Date()) - startDay) / DAY_MS) + spanDays,
+        );
+        setCompareEarlierStart(toDateInput(priorStart));
+        setCompareEarlierEnd(toDateInput(priorEnd));
+        setCompareLaterStart(start);
+        setCompareLaterEnd(end);
+      }
+    } else if (preset === "custom") {
+      setCompareLaterStart(toDateInput(startOfDaysAgo(29)));
+      setCompareLaterEnd(toDateInput(startOfDaysAgo(0)));
+      setCompareEarlierStart(toDateInput(startOfDaysAgo(59)));
+      setCompareEarlierEnd(toDateInput(startOfDaysAgo(30)));
+    }
+
+    setCompareMode(true);
   };
 
   const getResultLabel = (item: ReportItem) => {
@@ -786,49 +1297,65 @@ function ReportsContent() {
           <p>
             {loading
               ? "Loading activity…"
-              : flagged.length
-                ? `${items.length} activities · ${flagged.length} flagged`
-                : `${items.length} activities in this period`}
+              : compareMode
+                ? `Comparing ${earlierDetail} → ${laterDetail}`
+                : flagged
+                  ? `${items.length} activities · ${flagged} flagged`
+                  : `${items.length} activities in this period`}
           </p>
         </div>
 
         <div className="report-toolbar">
-          <label className="report-period">
-            <CalendarDays size={16} />
-            <select
-              value={range}
-              aria-label="Report period"
-              onChange={(event) => setRange(event.target.value as Range)}
-            >
-              <option value="today">Today</option>
-              <option value="yesterday">Yesterday</option>
-              <option value="7days">Last 7 days</option>
-              <option value="30days">Last 30 days</option>
-              <option value="all">All time</option>
-              <option value="custom">Custom range</option>
-            </select>
-          </label>
+          {!compareMode && (
+            <>
+              <label className="report-period">
+                <CalendarDays size={16} />
+                <select
+                  value={range}
+                  aria-label="Report period"
+                  onChange={(event) => setRange(event.target.value as Range)}
+                >
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
+                  <option value="7days">Last 7 days</option>
+                  <option value="30days">Last 30 days</option>
+                  <option value="all">All time</option>
+                  <option value="custom">Custom range</option>
+                </select>
+              </label>
 
-          {range === "custom" && (
-            <div className="report-custom-dates">
-              <input
-                type="date"
-                aria-label="From date"
-                value={start}
-                onChange={(event) => setStart(event.target.value)}
-              />
-              <span>to</span>
-              <input
-                type="date"
-                aria-label="To date"
-                min={start || undefined}
-                value={end}
-                onChange={(event) => setEnd(event.target.value)}
-              />
-            </div>
+              {range === "custom" && (
+                <div className="report-custom-dates">
+                  <input
+                    type="date"
+                    aria-label="From date"
+                    value={start}
+                    onChange={(event) => setStart(event.target.value)}
+                  />
+                  <span>to</span>
+                  <input
+                    type="date"
+                    aria-label="To date"
+                    min={start || undefined}
+                    value={end}
+                    onChange={(event) => setEnd(event.target.value)}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           <div className="report-top-actions">
+            <button
+              type="button"
+              className={compareMode ? "active" : undefined}
+              onClick={() =>
+                compareMode ? setCompareMode(false) : enterCompareMode()
+              }
+            >
+              <ArrowRightLeft size={16} />
+              {compareMode ? "Exit compare" : "Compare"}
+            </button>
             <button type="button" onClick={() => window.print()}>
               <Printer size={16} />
               Print
@@ -854,255 +1381,565 @@ function ReportsContent() {
       <article className="report-document">
         <section className="report-document-header">
           <div>
-            <h2>{periodLabel}</h2>
-            <p>Generated {new Date().toLocaleString()}</p>
+            <h2>
+              {compareMode
+                ? `${earlierLabel} vs ${laterLabel}`
+                : periodLabel}
+            </h2>
+            <p>
+              {compareMode
+                ? `${earlierDetail} → ${laterDetail} · Generated ${new Date().toLocaleString()}`
+                : `Generated ${new Date().toLocaleString()}`}
+            </p>
           </div>
         </section>
 
-        <section className="report-section">
-          <div className="report-section-title">
-            <h3>Summary</h3>
-          </div>
+        {compareMode ? (
+          <>
+            <section className="report-section no-print">
+              <div className="report-section-title">
+                <h3>Periods</h3>
+              </div>
+              <div className="report-compare-periods">
+                <label className="report-period">
+                  <CalendarDays size={16} />
+                  <select
+                    value={comparePreset}
+                    aria-label="Compare preset"
+                    onChange={(event) =>
+                      setComparePreset(event.target.value as ComparePreset)
+                    }
+                  >
+                    <option value="today_vs_yesterday">
+                      Today vs yesterday
+                    </option>
+                    <option value="7_vs_prior">
+                      Last 7 days vs prior 7
+                    </option>
+                    <option value="30_vs_prior">
+                      Last 30 days vs prior 30
+                    </option>
+                    <option value="custom">Custom ranges</option>
+                  </select>
+                </label>
 
-          <div className="report-metrics">
-            <div>
-              <Activity size={18} />
-              <span>Total</span>
-              <strong>{items.length}</strong>
-            </div>
-            <div>
-              <CheckCircle2 size={18} />
-              <span>Safe</span>
-              <strong>{counts.safe}</strong>
-            </div>
-            <div>
-              <AlertTriangle size={18} />
-              <span>Suspicious</span>
-              <strong>{counts.suspicious}</strong>
-            </div>
-            <div>
-              <ShieldAlert size={18} />
-              <span>High risk</span>
-              <strong>{counts.high}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className="report-section">
-          <div className="report-section-title">
-            <h3>Categories</h3>
-          </div>
-
-          <div className="report-category-grid">
-            {CATEGORIES.map(({ id, label, icon: Icon }) => {
-              const group = items.filter((item) => item.category === id);
-              const warnings = group.filter(
-                (item) =>
-                  item.finding === "high" || item.finding === "suspicious",
-              ).length;
-
-              return (
-                <button
-                  type="button"
-                  key={id}
-                  className={`report-category-card ${
-                    selectedCategory === id ? "selected" : ""
-                  }`}
-                  onClick={() => {
-                    setSelectedCategory(selectedCategory === id ? "all" : id);
-                    document
-                      .getElementById("report-activity")
-                      ?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start",
-                      });
-                  }}
-                >
-                  <span className="report-category-top">
-                    <span className="report-category-icon">
-                      <Icon size={16} />
-                    </span>
-                    <strong>{group.length}</strong>
-                  </span>
-                  <span className="report-category-name">{label}</span>
-                  {warnings > 0 && (
-                    <small className="report-category-flag">
-                      {warnings} flagged
-                    </small>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="report-section" id="report-activity">
-          <div className="report-section-title">
-            <h3>Activity</h3>
-          </div>
-
-          <div className="report-log-controls no-print">
-            <label className="report-search">
-              <Search size={16} />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search activity…"
-              />
-              {search && (
-                <button
-                  type="button"
-                  aria-label="Clear search"
-                  onClick={() => setSearch("")}
-                >
-                  <X size={15} />
-                </button>
-              )}
-            </label>
-
-            <select
-              aria-label="Activity category"
-              value={selectedCategory}
-              onChange={(event) =>
-                setSelectedCategory(event.target.value as Category | "all")
-              }
-            >
-              <option value="all">All categories</option>
-              {CATEGORIES.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div
-            className={`report-log-head ${
-              selectedCategory === "news" ? "news-view" : ""
-            }`}
-          >
-            <span>Activity</span>
-            <span>Category</span>
-
-            {selectedCategory !== "news" && <span>Finding</span>}
-
-            <span>Time</span>
-          </div>
-
-          <div className="report-log-table">
-            {shown.length ? (
-              shown.map((item) => {
-                const category = CATEGORIES.find(
-                  (category) => category.id === item.category,
-                )!;
-
-                const open = expanded === item.id;
-
-                return (
-                  <div key={item.id} className="report-log-entry">
-                    <button
-                      type="button"
-                      className={`report-log-row ${
-                        selectedCategory === "news" ? "news-view" : ""
-                      }`}
-                      onClick={() => setExpanded(open ? null : item.id)}
-                      aria-expanded={open}
-                    >
-                      <span className="report-log-main">
-                        {open ? (
-                          <ChevronDown size={16} />
-                        ) : (
-                          <ChevronRight size={16} />
-                        )}
-
-                        <span>
-                          <strong>{item.title}</strong>
-                          <small>{item.detail}</small>
-                        </span>
-                      </span>
-
-                      <span>{category.label}</span>
-                      {selectedCategory !== "news" && (
-                        <span>
-                          {item.category !== "news" && (
-                            <span
-                              className={`report-finding ${getResultClass(item)}`}
-                            >
-                              {getResultLabel(item)}
-                            </span>
-                          )}
-                        </span>
-                      )}
-
-                      <span className="report-log-time">
-                        {dateText(item.occurredAt)}
-                      </span>
-                    </button>
-
-                    {open && (
-                      <div className="report-log-detail">
-                        <p>
-                          <strong>Source</strong> {SOURCE_LABELS[item.source]}
-                        </p>
-
-                        {item.category === "passwords" && (
-                          <p>
-                            Password strength:{" "}
-                            <span
-                              className={`report-finding ${getResultClass(item)}`}
-                            >
-                              {getResultLabel(item)}
-                            </span>
-                            . The password itself is not stored.
-                          </p>
-                        )}
-
-                        {item.category !== "passwords" &&
-                          typeof item.score === "number" && (
-                            <p>
-                              <strong>Risk score</strong> {item.score}/100
-                            </p>
-                          )}
-
-                        {item.notes?.length ? (
-                          <ul>
-                            {item.notes.map((note, index) => (
-                              <li key={index}>{note}</li>
-                            ))}
-                          </ul>
-                        ) : null}
-                      </div>
-                    )}
+                <div className="report-compare-window-labels">
+                  <div>
+                    <strong>{earlierLabel}</strong>
+                    <span>{earlierDetail}</span>
                   </div>
-                );
-              })
-            ) : (
-              <div className="report-empty">
-                <FileText size={25} />
+                  <div>
+                    <strong>{laterLabel}</strong>
+                    <span>{laterDetail}</span>
+                  </div>
+                </div>
 
+                {comparePreset === "custom" && (
+                  <div className="report-compare-custom-grid">
+                    <div className="report-period-block">
+                      <span className="report-period-label">Earlier</span>
+                      <div className="report-custom-dates">
+                        <input
+                          type="date"
+                          aria-label="Earlier from date"
+                          value={compareEarlierStart}
+                          onChange={(event) =>
+                            setCompareEarlierStart(event.target.value)
+                          }
+                        />
+                        <span>to</span>
+                        <input
+                          type="date"
+                          aria-label="Earlier to date"
+                          min={compareEarlierStart || undefined}
+                          value={compareEarlierEnd}
+                          onChange={(event) =>
+                            setCompareEarlierEnd(event.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="report-period-block">
+                      <span className="report-period-label">Later</span>
+                      <div className="report-custom-dates">
+                        <input
+                          type="date"
+                          aria-label="Later from date"
+                          value={compareLaterStart}
+                          onChange={(event) =>
+                            setCompareLaterStart(event.target.value)
+                          }
+                        />
+                        <span>to</span>
+                        <input
+                          type="date"
+                          aria-label="Later to date"
+                          min={compareLaterStart || undefined}
+                          value={compareLaterEnd}
+                          onChange={(event) =>
+                            setCompareLaterEnd(event.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="report-section">
+              <div className="report-section-title">
+                <h3>Security change</h3>
+              </div>
+
+              <div
+                className={`report-compare-verdict ${compareDeltas.verdict}`}
+              >
                 <strong>
-                  {loading
-                    ? "Loading your report…"
-                    : items.length === 0
-                      ? "No security activity yet"
-                      : "No matching activities"}
+                  {compareDeltas.verdict === "improved"
+                    ? "Security improved"
+                    : compareDeltas.verdict === "declined"
+                      ? "Security declined"
+                      : compareDeltas.verdict === "empty"
+                        ? "Not enough activity to compare"
+                        : "Security held steady"}
                 </strong>
-
                 <p>
-                  {loading
-                    ? "Gathering recent activity…"
-                    : items.length === 0
-                      ? "Scan emails, run Device Scanner, check security items, or use Website Tracker — activity appears here automatically."
-                      : "Try a different period or clear your search."}
+                  {compareDeltas.verdict === "empty"
+                    ? "Neither period has scanned activity yet. Try Last 30 days vs prior 30, or choose custom dates that cover your history."
+                    : compareDeltas.reason === "score" &&
+                        compareDeltas.verdict === "improved"
+                      ? `Average website risk score dropped in ${laterLabel.toLowerCase()} (${laterDetail}) versus ${earlierLabel.toLowerCase()} (${earlierDetail}).`
+                      : compareDeltas.reason === "score" &&
+                          compareDeltas.verdict === "declined"
+                        ? `Average website risk score rose in ${laterLabel.toLowerCase()} (${laterDetail}) versus ${earlierLabel.toLowerCase()} (${earlierDetail}).`
+                        : compareDeltas.verdict === "improved"
+                          ? `Fewer risk signals in ${laterLabel.toLowerCase()} (${laterDetail}) than ${earlierLabel.toLowerCase()} (${earlierDetail}).`
+                          : compareDeltas.verdict === "declined"
+                            ? `More risk signals in ${laterLabel.toLowerCase()} (${laterDetail}) than ${earlierLabel.toLowerCase()} (${earlierDetail}).`
+                            : "Flagged and high-risk counts look similar across both periods."}
                 </p>
               </div>
-            )}
-          </div>
 
-          <p className="report-footnote">
-            {shown.length} of {items.length} · {periodLabel.toLowerCase()}
-          </p>
-        </section>
+              {!compareHasData && (
+                <div className="report-compare-empty-tip">
+                  Tip: your stored activity may fall outside today/yesterday.
+                  Switch the preset above to include older scans.
+                </div>
+              )}
+
+              <div className="report-compare-metrics">
+                {(
+                  [
+                    {
+                      key: "total",
+                      label: "Total",
+                      icon: Activity,
+                      earlier: earlierMetrics.total,
+                      later: laterMetrics.total,
+                      delta: compareDeltas.totalDelta,
+                      tone: "neutral" as TrendTone,
+                    },
+                    {
+                      key: "safe",
+                      label: "Safe",
+                      icon: CheckCircle2,
+                      earlier: earlierMetrics.safe,
+                      later: laterMetrics.safe,
+                      delta: compareDeltas.safeDelta,
+                      tone:
+                        compareDeltas.safeDelta > 0
+                          ? ("better" as TrendTone)
+                          : compareDeltas.safeDelta < 0
+                            ? ("worse" as TrendTone)
+                            : ("neutral" as TrendTone),
+                    },
+                    {
+                      key: "suspicious",
+                      label: "Suspicious",
+                      icon: AlertTriangle,
+                      earlier: earlierMetrics.suspicious,
+                      later: laterMetrics.suspicious,
+                      delta: compareDeltas.suspiciousDelta,
+                      tone: riskTone(compareDeltas.suspiciousDelta),
+                    },
+                    {
+                      key: "high",
+                      label: "High risk",
+                      icon: ShieldAlert,
+                      earlier: earlierMetrics.high,
+                      later: laterMetrics.high,
+                      delta: compareDeltas.highDelta,
+                      tone: riskTone(compareDeltas.highDelta),
+                    },
+                  ] as const
+                ).map((metric) => (
+                  <div key={metric.key} className="report-compare-metric">
+                    <metric.icon size={18} />
+                    <span>{metric.label}</span>
+                    <div className="report-compare-metric-values">
+                      <strong>{metric.later}</strong>
+                      <small>
+                        was {metric.earlier}
+                      </small>
+                    </div>
+                    <span
+                      className={`report-compare-delta ${metric.tone}`}
+                    >
+                      <TrendIcon tone={metric.tone} />
+                      {formatSigned(metric.delta)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {(earlierMetrics.avgWebsiteScore !== null ||
+                laterMetrics.avgWebsiteScore !== null) && (
+                <div className="report-compare-score">
+                  <div>
+                    <span>Avg website risk score</span>
+                    <strong>
+                      {laterMetrics.avgWebsiteScore ?? "—"}
+                      <small>/100 later</small>
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Earlier</span>
+                    <strong>
+                      {earlierMetrics.avgWebsiteScore ?? "—"}
+                      <small>/100</small>
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Change</span>
+                    <strong
+                      className={`report-compare-delta ${
+                        compareDeltas.scoreDelta === null
+                          ? "neutral"
+                          : riskTone(compareDeltas.scoreDelta)
+                      }`}
+                    >
+                      {compareDeltas.scoreDelta === null
+                        ? "—"
+                        : formatSigned(compareDeltas.scoreDelta)}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="report-section">
+              <div className="report-section-title">
+                <h3>Categories</h3>
+              </div>
+
+              <div className="report-compare-table">
+                <div className="report-compare-table-head">
+                  <span>Category</span>
+                  <span>{earlierLabel}</span>
+                  <span>{laterLabel}</span>
+                  <span>Flagged Δ</span>
+                </div>
+                {CATEGORIES.map(({ id, label, icon: Icon }) => {
+                  const earlier = earlierMetrics.byCategory[id];
+                  const later = laterMetrics.byCategory[id];
+                  const flaggedDelta = deltaOf(later.flagged, earlier.flagged);
+                  const tone = riskTone(flaggedDelta);
+
+                  return (
+                    <div key={id} className="report-compare-table-row">
+                      <span className="report-compare-category">
+                        <span className="report-category-icon">
+                          <Icon size={16} />
+                        </span>
+                        {label}
+                      </span>
+                      <span>
+                        {earlier.total}
+                        {earlier.flagged > 0 && (
+                          <small> · {earlier.flagged} flagged</small>
+                        )}
+                      </span>
+                      <span>
+                        {later.total}
+                        {later.flagged > 0 && (
+                          <small> · {later.flagged} flagged</small>
+                        )}
+                      </span>
+                      <span className={`report-compare-delta ${tone}`}>
+                        <TrendIcon tone={tone} />
+                        {formatSigned(flaggedDelta)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="report-footnote">
+                Lower flagged and high-risk counts mean stronger security.
+                Activity volume alone is not scored as better or worse.
+              </p>
+            </section>
+          </>
+        ) : (
+          <>
+            <section className="report-section">
+              <div className="report-section-title">
+                <h3>Summary</h3>
+              </div>
+
+              <div className="report-metrics">
+                <div>
+                  <Activity size={18} />
+                  <span>Total</span>
+                  <strong>{items.length}</strong>
+                </div>
+                <div>
+                  <CheckCircle2 size={18} />
+                  <span>Safe</span>
+                  <strong>{counts.safe}</strong>
+                </div>
+                <div>
+                  <AlertTriangle size={18} />
+                  <span>Suspicious</span>
+                  <strong>{counts.suspicious}</strong>
+                </div>
+                <div>
+                  <ShieldAlert size={18} />
+                  <span>High risk</span>
+                  <strong>{counts.high}</strong>
+                </div>
+              </div>
+              {(counts.unverified > 0 || counts.info > 0) && (
+                <p className="report-footnote">
+                  Includes {counts.info > 0 ? `${counts.info} informational` : ""}
+                  {counts.info > 0 && counts.unverified > 0 ? " · " : ""}
+                  {counts.unverified > 0
+                    ? `${counts.unverified} unverified`
+                    : ""}
+                  {" "}
+                  (counted in Total, not in Safe/Suspicious/High)
+                </p>
+              )}
+            </section>
+
+            <section className="report-section">
+              <div className="report-section-title">
+                <h3>Categories</h3>
+              </div>
+
+              <div className="report-category-grid">
+                {CATEGORIES.map(({ id, label, icon: Icon }) => {
+                  const group = counts.byCategory[id];
+                  const warnings = group.flagged;
+
+                  return (
+                    <button
+                      type="button"
+                      key={id}
+                      className={`report-category-card ${
+                        selectedCategory === id ? "selected" : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedCategory(
+                          selectedCategory === id ? "all" : id,
+                        );
+                        document
+                          .getElementById("report-activity")
+                          ?.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                          });
+                      }}
+                    >
+                      <span className="report-category-top">
+                        <span className="report-category-icon">
+                          <Icon size={16} />
+                        </span>
+                        <strong>{group.total}</strong>
+                      </span>
+                      <span className="report-category-name">{label}</span>
+                      {warnings > 0 && (
+                        <small className="report-category-flag">
+                          {warnings} flagged
+                        </small>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="report-section" id="report-activity">
+              <div className="report-section-title">
+                <h3>Activity</h3>
+              </div>
+
+              <div className="report-log-controls no-print">
+                <label className="report-search">
+                  <Search size={16} />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search activity…"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      onClick={() => setSearch("")}
+                    >
+                      <X size={15} />
+                    </button>
+                  )}
+                </label>
+
+                <select
+                  aria-label="Activity category"
+                  value={selectedCategory}
+                  onChange={(event) =>
+                    setSelectedCategory(event.target.value as Category | "all")
+                  }
+                >
+                  <option value="all">All categories</option>
+                  {CATEGORIES.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div
+                className={`report-log-head ${
+                  selectedCategory === "news" ? "news-view" : ""
+                }`}
+              >
+                <span>Activity</span>
+                <span>Category</span>
+
+                {selectedCategory !== "news" && <span>Finding</span>}
+
+                <span>Time</span>
+              </div>
+
+              <div className="report-log-table">
+                {shown.length ? (
+                  shown.map((item) => {
+                    const category = CATEGORIES.find(
+                      (category) => category.id === item.category,
+                    )!;
+
+                    const open = expanded === item.id;
+
+                    return (
+                      <div key={item.id} className="report-log-entry">
+                        <button
+                          type="button"
+                          className={`report-log-row ${
+                            selectedCategory === "news" ? "news-view" : ""
+                          }`}
+                          onClick={() => setExpanded(open ? null : item.id)}
+                          aria-expanded={open}
+                        >
+                          <span className="report-log-main">
+                            {open ? (
+                              <ChevronDown size={16} />
+                            ) : (
+                              <ChevronRight size={16} />
+                            )}
+
+                            <span>
+                              <strong>{item.title}</strong>
+                              <small>{item.detail}</small>
+                            </span>
+                          </span>
+
+                          <span>{category.label}</span>
+                          {selectedCategory !== "news" && (
+                            <span>
+                              {item.category !== "news" && (
+                                <span
+                                  className={`report-finding ${getResultClass(item)}`}
+                                >
+                                  {getResultLabel(item)}
+                                </span>
+                              )}
+                            </span>
+                          )}
+
+                          <span className="report-log-time">
+                            {dateText(item.occurredAt)}
+                          </span>
+                        </button>
+
+                        {open && (
+                          <div className="report-log-detail">
+                            <p>
+                              <strong>Source</strong>{" "}
+                              {SOURCE_LABELS[item.source]}
+                            </p>
+
+                            {item.category === "passwords" && (
+                              <p>
+                                Password strength:{" "}
+                                <span
+                                  className={`report-finding ${getResultClass(item)}`}
+                                >
+                                  {getResultLabel(item)}
+                                </span>
+                                . The password itself is not stored.
+                              </p>
+                            )}
+
+                            {item.category !== "passwords" &&
+                              typeof item.score === "number" && (
+                                <p>
+                                  <strong>Risk score</strong> {item.score}/100
+                                </p>
+                              )}
+
+                            {item.notes?.length ? (
+                              <ul>
+                                {item.notes.map((note, index) => (
+                                  <li key={index}>{note}</li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="report-empty">
+                    <FileText size={25} />
+
+                    <strong>
+                      {loading
+                        ? "Loading your report…"
+                        : items.length === 0
+                          ? "No security activity yet"
+                          : "No matching activities"}
+                    </strong>
+
+                    <p>
+                      {loading
+                        ? "Gathering recent activity…"
+                        : items.length === 0
+                          ? "Scan emails, run Device Scanner, check security items, or use Website Tracker — activity appears here automatically."
+                          : "Try a different period or clear your search."}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <p className="report-footnote">
+                {shown.length} of {items.length} · {periodLabel.toLowerCase()}
+              </p>
+            </section>
+          </>
+        )}
 
         {/* REPORT FOOTER */}
         <footer className="report-footer">
