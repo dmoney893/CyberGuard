@@ -85,7 +85,7 @@ Results show a risk score, SAFE/PHISHING classification, and a plain-English exp
     summary:
       "Run security checks from CyberGuard (page is available in the sidebar; more checks are being added).",
     howTo:
-      "Open **Security Checker** in the left sidebar, or go to [Security Checker](/security-checker).",
+      "Open Security Checker in the left sidebar, or go to [Security Checker](/security-checker).",
     keywords: [
       "security checker",
       "security check",
@@ -96,13 +96,75 @@ Results show a risk score, SAFE/PHISHING classification, and a plain-English exp
     ],
   },
   {
+    id: "team-security",
+    name: "Team Security",
+    path: "/organization",
+    summary:
+      "Create or join an organization, invite members, and manage team protection.",
+    howTo: `Open Team Security in the left sidebar, or go to [Team Security](/organization). You must be signed in.
+
+To create a team:
+1. Open Team Security.
+2. Click Create organization.
+3. Enter a name and confirm.
+
+You can also accept invitations from this page. Settings cannot create a team.`,
+    keywords: [
+      "team security",
+      "team",
+      "teams",
+      "organization",
+      "create organization",
+      "create a team",
+      "create team",
+      "make a team",
+      "new organization",
+      "invite members",
+      "invite teammate",
+      "join organization",
+      "join team",
+      "org",
+    ],
+  },
+  {
+    id: "device-scanner",
+    name: "Device Scanner",
+    path: "/device-scanner",
+    summary: "Scan your device for local security issues (sign-in required).",
+    howTo:
+      "Open Device Scanner in the left sidebar, or go to [Device Scanner](/device-scanner). Sign in first if asked.",
+    keywords: [
+      "device scanner",
+      "scan device",
+      "device scan",
+      "local scan",
+      "computer scan",
+    ],
+  },
+  {
+    id: "system-guardian",
+    name: "System Guardian",
+    path: "/system-guardian",
+    summary:
+      "Monitor system activity and local security events (sign-in required).",
+    howTo:
+      "Open System Guardian in the left sidebar, or go to [System Guardian](/system-guardian). Sign in first if asked.",
+    keywords: [
+      "system guardian",
+      "guardian",
+      "process monitor",
+      "system monitor",
+      "security timeline",
+    ],
+  },
+  {
     id: "cyber-assistant",
     name: "Cyber Assistant",
     path: "/cyber-assistant",
     summary:
       "Ask cybersecurity questions and get guidance, including where to find tools in CyberGuard.",
     howTo:
-      "You are already here on [Cyber Assistant](/cyber-assistant). Use the suggestion chips or type any security or CyberGuard question.",
+      "Open Cyber Assistant from the floating button at the bottom-right, or from Cyber Assistant in the left sidebar. Type any security or CyberGuard question.",
     keywords: [
       "cyber assistant",
       "assistant",
@@ -114,29 +176,42 @@ Results show a risk score, SAFE/PHISHING classification, and a plain-English exp
     ],
   },
   {
+    id: "news",
+    name: "News",
+    path: "/news",
+    summary: "Read cybersecurity news curated for CyberGuard.",
+    howTo: "Open News in the left sidebar, or go to [News](/news).",
+    keywords: ["news", "cyber news", "security news", "headlines"],
+  },
+  {
     id: "reports",
     name: "Reports",
     path: "/reports",
     summary:
-      "View CyberGuard reports and scan summaries (available from the sidebar).",
+      "View CyberGuard security activity summaries and compare two time periods.",
     howTo:
-      "Open **Reports** in the left sidebar, or go to [Reports](/reports).",
+      "Open Reports in the left sidebar, or go to [Reports](/reports). Use the period menu to filter activity. To see whether security improved or declined, click Compare and pick a preset such as Last 30 days vs prior 30, or custom date ranges.",
     keywords: [
       "reports",
       "report",
+      "compare reports",
+      "compare",
       "scan history",
       "results history",
       "past scans",
       "summary",
+      "security improved",
+      "security declined",
     ],
   },
   {
     id: "settings",
     name: "Settings",
     path: "/settings",
-    summary: "Manage CyberGuard account and app preferences.",
+    summary:
+      "Manage your profile, account details, and alert notification preferences. Settings does not create teams.",
     howTo:
-      "Open **Settings** in the left sidebar, or go to [Settings](/settings).",
+      "Open Settings in the left sidebar, or go to [Settings](/settings). Use this page for profile and notifications only. To create or join a team, use [Team Security](/organization).",
     keywords: [
       "settings",
       "preferences",
@@ -144,6 +219,8 @@ Results show a risk score, SAFE/PHISHING classification, and a plain-English exp
       "profile",
       "change settings",
       "configuration",
+      "notifications",
+      "alert settings",
     ],
   },
   {
@@ -202,10 +279,11 @@ export const TOPIC_TOOL_LINKS: Record<string, string[]> = {
   "device-security": ["security-checker", "settings"],
   "home-network": ["security-checker"],
   "kids-safety": ["cyber-assistant", "settings"],
-  "work-security": ["email-scanner", "security-checker"],
+  "work-security": ["team-security", "email-scanner", "security-checker"],
   "cookies-sessions": ["settings", "security-checker"],
   "cyberguard-tools": [
     "dashboard",
+    "team-security",
     "email-scanner",
     "website-tracker",
     "security-checker",
@@ -217,7 +295,7 @@ export function featureById(id: string): PlatformFeature | undefined {
 }
 
 export function formatFeatureRedirect(feature: PlatformFeature): string {
-  return `**${feature.name}** — ${feature.summary}
+  return `${feature.name} — ${feature.summary}
 
 ${feature.howTo}`;
 }
@@ -232,23 +310,24 @@ export function formatToolLinks(featureIds: string[]): string {
   }
 
   const lines = features.map(
-    (feature) => `- [${feature.name}](${feature.path}) — ${feature.summary}`,
+    (feature) =>
+      `${features.indexOf(feature) + 1}. [${feature.name}](${feature.path}) — ${feature.summary}`,
   );
 
-  return `\n\n**In CyberGuard**\n${lines.join("\n")}`;
+  return `\n\nIn CyberGuard\n${lines.join("\n")}`;
 }
 
 export function platformCatalogReply(): string {
   const lines = PLATFORM_FEATURES.filter((f) => f.id !== "auth").map(
-    (feature) =>
-      `- [${feature.name}](${feature.path}) — ${feature.summary}`,
+    (feature, index) =>
+      `${index + 1}. [${feature.name}](${feature.path}) — ${feature.summary}`,
   );
 
   return `Here is what you can open in CyberGuard right now:
 
 ${lines.join("\n")}
 
-- **Login / Sign up** — use the buttons at the top of the left sidebar.
+Login / Sign up — use the buttons at the top of the left sidebar.
 
 Tell me what you want to do (for example “scan an email” or “check a website”) and I will point you to the right place.`;
 }
