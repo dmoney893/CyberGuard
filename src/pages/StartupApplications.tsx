@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Power, RefreshCw, Search, Lock, Info, ShieldCheck } from "lucide-react";
+import { Power, RefreshCw, Search, Lock, ShieldCheck } from "lucide-react";
 import "./StartupApplications.css";
 
 const API_URL = "http://127.0.0.1:8765";
