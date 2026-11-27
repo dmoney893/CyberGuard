@@ -1,6 +1,5 @@
-
 #define MyAppName "CyberGuard Agent"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppExeName "CyberGuardAgent.exe"
 
 [Setup]
@@ -19,7 +18,7 @@ PrivilegesRequired=lowest
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Files]
-Source: "..\dist\CyberGuardAgent\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\build\agent-dist\CyberGuardAgent\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\CyberGuard Agent"; Filename: "{app}\{#MyAppExeName}"

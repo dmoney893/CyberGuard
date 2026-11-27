@@ -426,7 +426,7 @@ def system_network_connections(
         )
 @app.get("/system/startup-applications")
 def system_startup_applications(
-    _=Depends(require_local_frontend),
+    _=Depends(require_paired_session),
 ):
     try:
         return get_startup_applications()
@@ -443,7 +443,7 @@ def system_startup_applications(
 @app.post("/system/startup-applications/approve")
 def approve_system_startup_application(
     request: StartupApprovalRequest,
-    _=Depends(require_local_frontend),
+    _=Depends(require_paired_session),
 ):
     if not startup_approval_lock.acquire(blocking=False):
         raise HTTPException(
@@ -485,7 +485,7 @@ def approve_system_startup_application(
 @app.post("/system/startup-applications/state")
 def update_startup_application_state(
     request: StartupStateRequest,
-    _=Depends(require_local_frontend),
+    _=Depends(require_paired_session),
 ):
     try:
         application = set_startup_application_state(

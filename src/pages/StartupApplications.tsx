@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Power, RefreshCw, Search, Lock, ShieldCheck } from "lucide-react";
 import "./StartupApplications.css";
-
-const API_URL = "http://127.0.0.1:8765";
+import { agentFetch } from "../lib/localAgent";
 
 type StartupApplication = {
   id: string;
@@ -47,8 +46,8 @@ export default function StartupApplications() {
     setError("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/system/startup-applications`
+      const response = await agentFetch(
+        "/system/startup-applications"
       );
 
       if (!response.ok) {
@@ -89,8 +88,8 @@ export default function StartupApplications() {
     setMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/system/startup-applications/state`,
+      const response = await agentFetch(
+          "/system/startup-applications/state",
         {
           method: "POST",
           headers: {
@@ -166,8 +165,8 @@ export default function StartupApplications() {
     setMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/system/startup-applications/approve`,
+      const response = await agentFetch(
+          "/system/startup-applications/approve",
         {
           method: "POST",
           headers: {
