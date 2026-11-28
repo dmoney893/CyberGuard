@@ -63,6 +63,7 @@ ALLOWED_ORIGINS = {
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://cyberguard-omega-sable.vercel.app",
+    "https://cyberguard-git-feature-mac-agent-installer-dmoney893.vercel.app",
 }
 
 PAIRING_CODE_LIFETIME = 300

@@ -24,6 +24,12 @@ in the website's pairing form. Codes expire after five minutes and are single us
 Allow browser permission to connect to apps on this device when requested.
 Refreshing the website currently requires pairing again.
 
+The desktop agent permits this exact PR branch preview for pre-merge testing:
+`https://cyberguard-git-feature-mac-agent-installer-dmoney893.vercel.app`.
+Open Device Scanner there manually and use the port shown in the app. This is
+an explicit desktop-agent exception, not a wildcard preview rule, and does not
+change the browser extension's separate account-linking allowlist.
+
 Build on Apple Silicon using a Python 3.13 installation that includes Tkinter:
 
 ```bash

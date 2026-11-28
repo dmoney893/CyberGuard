@@ -30,3 +30,9 @@ You can still use device security checks and system monitoring without ClamAV.
 If connection fails, confirm the agent is open and the website's Agent port
 matches the port shown in its window. Check browser permission to connect to
 apps on this device. The website must include the Mac agent connection update.
+
+The agent also accepts the team's exact Mac-branch preview website:
+https://cyberguard-git-feature-mac-agent-installer-dmoney893.vercel.app
+When testing the PR, open Device Scanner on that preview and enter the port
+shown in the app. Other preview domains are not allowed. The app's website
+button opens the published website, which needs Daniel's merge/deployment first.
