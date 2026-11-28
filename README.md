@@ -8,6 +8,15 @@ CyberGuard Agent.app to Applications, and open it. Keep its window open.
 This build is ad hoc signed for testing, not Developer ID signed or notarized;
 macOS may block downloaded copies. Intel Macs need a separate build.
 
+If macOS displays **“CyberGuard Agent Not Opened”** / **“Apple could not verify”**,
+click **Done** (not Move to Trash). For the team's known test download, open
+**Apple menu → System Settings → Privacy & Security**, scroll to the CyberGuard
+blocked notice, choose **Open Anyway**, authenticate if requested, and confirm
+**Open**. This is normally a one-time approval for that copy; updates may need
+approval again. If the notice is missing, attempt to open the app again and return
+to Settings. School-managed Macs may require IT approval. Do not disable Gatekeeper.
+See [Apple's instructions](https://support.apple.com/en-us/102445).
+
 Click **Open CyberGuard Website** in the agent, then copy its pairing code into
 Device Scanner. The app uses the first free port from 8765 through 8775 and opens
 the website with `?agentPort=PORT`. You can also enter the port shown in the app
