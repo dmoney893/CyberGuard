@@ -1,23 +1,16 @@
-CyberGuard Website Monitor — Chrome test extension
+CyberGuard extension — Chrome on Mac and Windows
 
-Works in Chrome on Mac and Windows. No desktop agent, Python, or Terminal
-commands are required by testers. Internet access to the hosted backend is needed.
-
-1. Extract this ZIP into a folder you will keep on your computer.
+1. Extract the ZIP and keep the folder.
 2. Open chrome://extensions and enable Developer mode.
-3. Click Load unpacked. Select the extracted folder containing manifest.json.
-4. Open https://cyberguard-omega-sable.vercel.app/website-tracker and sign in.
-5. Refresh that website after installing or reloading the extension.
-6. Visit an ordinary HTTP(S) website and check the extension popup and tracker.
+3. Click Load unpacked and select the folder containing manifest.json.
+4. In the popup, click Connect dashboard to save history. Sign in and refresh.
+5. Visit a website, then check Website Tracker.
 
-The extension checks visited URLs through CyberGuard's hosted service. It asks
-for access to HTTP(S) websites for monitoring, warnings, and blocking controls.
-Review the requested permissions. Chrome internal pages are not monitored.
+Connect here: https://cyberguard-omega-sable.vercel.app/website-tracker
+PR preview websites cannot connect to the extension.
 
-The ZIP does not automatically install or update the extension. For updates,
-replace the extracted files, click Reload on its chrome://extensions card, then
-refresh CyberGuard. Do not delete the installed folder. Remove the extension
-through chrome://extensions when testing is finished.
+No desktop agent or Terminal commands needed. The extension sends visited URLs
+to CyberGuard's hosted service for analysis; review its browser permissions.
 
-Only the published CyberGuard origin and localhost:5173 support account linking.
-PR preview domains are not allowed. Do not add wildcard Vercel origins.
+Updates: replace the files, click Reload in chrome://extensions, and refresh
+CyberGuard. Keep the installed folder. Remove through chrome://extensions.

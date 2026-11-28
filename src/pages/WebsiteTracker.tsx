@@ -426,18 +426,18 @@ function WebsiteTrackerContent() {
 
       <section className="extension-install" aria-labelledby="extension-install-title">
         <h2 id="extension-install-title">Install the browser extension</h2>
-        <p>Download once and install in Chrome on Mac or Windows. The desktop agent is not required for website monitoring.</p>
+        <p>For Chrome on Mac and Windows. No desktop agent needed.</p>
         <a className="extension-download" href="/downloads/CyberGuard-Extension.zip" download>Download Chrome extension ZIP</a>
+        <p><strong>Connect on the published website:</strong> <a href="https://cyberguard-omega-sable.vercel.app/website-tracker">Open Website Tracker</a>. PR previews cannot connect to the extension.</p>
         <details>
           <summary>Installation instructions</summary>
           <ol>
             <li>Extract the ZIP to a folder you will keep on your computer.</li>
             <li>Open <code>chrome://extensions</code> in Chrome and enable Developer mode.</li>
             <li>Choose <strong>Load unpacked</strong> and select the extracted folder containing <code>manifest.json</code>.</li>
-            <li>Refresh the published CyberGuard website and sign in to connect your history. Use the extension popup to open Website Tracker.</li>
+            <li>Click <strong>Connect dashboard to save history</strong> in the extension popup. Sign in and refresh the published website.</li>
           </ol>
-          <p>This is a manual test installation. To update, replace the extracted files, click Reload on the extension card, and refresh CyberGuard. It monitors visited website URLs using the hosted CyberGuard service; review its requested browser permissions when installing.</p>
-          <p>PR preview domains do not connect to the extension. Use the published website for account linking.</p>
+          <p>To update: replace the extracted files, click Reload in Chrome, and refresh CyberGuard.</p>
         </details>
       </section>
 
