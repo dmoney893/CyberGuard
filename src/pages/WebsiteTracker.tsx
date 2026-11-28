@@ -428,7 +428,7 @@ function WebsiteTrackerContent() {
         <h2 id="extension-install-title">Install the browser extension</h2>
         <p>For Chrome on Mac and Windows. No desktop agent needed.</p>
         <a className="extension-download" href="/downloads/CyberGuard-Extension.zip" download>Download Chrome extension ZIP</a>
-        <p><strong>Connect on the published website:</strong> <a href="https://cyberguard-omega-sable.vercel.app/website-tracker">Open Website Tracker</a>. PR previews cannot connect to the extension.</p>
+        <p><a href="https://cyberguard-omega-sable.vercel.app/website-tracker">Open Website Tracker</a> to connect and save history.</p>
         <details>
           <summary>Installation instructions</summary>
           <ol>

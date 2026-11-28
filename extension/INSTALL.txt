@@ -7,7 +7,6 @@ CyberGuard extension — Chrome on Mac and Windows
 5. Visit a website, then check Website Tracker.
 
 Connect here: https://cyberguard-omega-sable.vercel.app/website-tracker
-PR preview websites cannot connect to the extension.
 
 No desktop agent or Terminal commands needed. The extension sends visited URLs
 to CyberGuard's hosted service for analysis; review its browser permissions.

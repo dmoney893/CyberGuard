@@ -23,7 +23,7 @@ export function requestExtension(
   ) {
     return Promise.reject(
       new Error(
-        "Open the published CyberGuard website or localhost:5173 to connect the extension. Preview domains are not enabled for account linking.",
+        "Open https://cyberguard-omega-sable.vercel.app/website-tracker to connect the extension.",
       ),
     );
   }
