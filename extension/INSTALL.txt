@@ -1,0 +1,23 @@
+CyberGuard Website Monitor — Chrome test extension
+
+Works in Chrome on Mac and Windows. No desktop agent, Python, or Terminal
+commands are required by testers. Internet access to the hosted backend is needed.
+
+1. Extract this ZIP into a folder you will keep on your computer.
+2. Open chrome://extensions and enable Developer mode.
+3. Click Load unpacked. Select the extracted folder containing manifest.json.
+4. Open https://cyberguard-omega-sable.vercel.app/website-tracker and sign in.
+5. Refresh that website after installing or reloading the extension.
+6. Visit an ordinary HTTP(S) website and check the extension popup and tracker.
+
+The extension checks visited URLs through CyberGuard's hosted service. It asks
+for access to HTTP(S) websites for monitoring, warnings, and blocking controls.
+Review the requested permissions. Chrome internal pages are not monitored.
+
+The ZIP does not automatically install or update the extension. For updates,
+replace the extracted files, click Reload on its chrome://extensions card, then
+refresh CyberGuard. Do not delete the installed folder. Remove the extension
+through chrome://extensions when testing is finished.
+
+Only the published CyberGuard origin and localhost:5173 support account linking.
+PR preview domains are not allowed. Do not add wildcard Vercel origins.

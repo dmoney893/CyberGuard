@@ -137,6 +137,23 @@ Keep all backend credentials in `src/backend/.env`; never copy them into the fro
 
 ### Browser extension and Website Tracker
 
+For testers, Website Tracker has a **Download Chrome extension ZIP** link. Extract
+it to a permanent folder, open `chrome://extensions`, enable Developer mode, and
+choose **Load unpacked** with the folder containing `manifest.json`. Refresh the
+published CyberGuard website and sign in. No desktop agent or local backend is
+needed for extension monitoring. The ZIP includes installation/update instructions.
+It is a manual test installation, with no automatic updates.
+
+`npm run build:extension` builds `extension/dist` and creates
+`public/downloads/CyberGuard-Extension.zip` using only built assets and instructions.
+Rebuild and commit the ZIP after extension source changes so website downloads
+match the source. The archive is packaged using Node, on Mac or Windows.
+
+The production extension uses the hosted backend. Account linking permits only
+the exact published origin `https://cyberguard-omega-sable.vercel.app` and the two
+local development origins on port 5173. A PR preview can serve the download but
+cannot link extension accounts. Do not wildcard preview origins.
+
 The extension checks websites using Google Web Risk, OpenPhish, and URL/page signals. Website Tracker shows saved visits, risk scores, and explanations, with search, filters, personal blocking, and history deletion. Scores indicate evidence strength, not a probability that a site is unsafe.
 
 ```bash

@@ -424,6 +424,23 @@ function WebsiteTrackerContent() {
         </div>
       </div>
 
+      <section className="extension-install" aria-labelledby="extension-install-title">
+        <h2 id="extension-install-title">Install the browser extension</h2>
+        <p>Download once and install in Chrome on Mac or Windows. The desktop agent is not required for website monitoring.</p>
+        <a className="extension-download" href="/downloads/CyberGuard-Extension.zip" download>Download Chrome extension ZIP</a>
+        <details>
+          <summary>Installation instructions</summary>
+          <ol>
+            <li>Extract the ZIP to a folder you will keep on your computer.</li>
+            <li>Open <code>chrome://extensions</code> in Chrome and enable Developer mode.</li>
+            <li>Choose <strong>Load unpacked</strong> and select the extracted folder containing <code>manifest.json</code>.</li>
+            <li>Refresh the published CyberGuard website and sign in to connect your history. Use the extension popup to open Website Tracker.</li>
+          </ol>
+          <p>This is a manual test installation. To update, replace the extracted files, click Reload on the extension card, and refresh CyberGuard. It monitors visited website URLs using the hosted CyberGuard service; review its requested browser permissions when installing.</p>
+          <p>PR preview domains do not connect to the extension. Use the published website for account linking.</p>
+        </details>
+      </section>
+
       {!session && (
         <div className="tracker-guest-message">
           <Globe2 size={18} />
