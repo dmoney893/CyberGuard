@@ -23,9 +23,9 @@ Generate New Code if the code has expired or was already used. Codes last
 five minutes. Refreshing the website currently requires pairing again.
 
 This ZIP is for Apple Silicon Macs, not Intel Macs. Startup Applications
-management is currently Windows-only. Malware scanning requires a separate
-ClamAV installation and signature database; ClamAV is not included in this ZIP.
-You can still use device security checks and system monitoring without ClamAV.
+management is currently Windows-only. The malware scanner and starting virus
+definitions are included. The app updates definitions automatically when online.
+No separate ClamAV, Homebrew, or Python installation is needed.
 
 If connection fails, confirm the agent is open and the website's Agent port
 matches the port shown in its window. Check browser permission to connect to

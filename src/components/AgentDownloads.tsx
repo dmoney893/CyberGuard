@@ -4,7 +4,7 @@ export default function AgentDownloads() {
       <a className="agent-install-download" href="/downloads/CyberGuardSetup.exe" download>
         Download for Windows
       </a>
-      <a className="agent-install-download" href="/downloads/CyberGuard-Agent-mac-arm64.zip" download>
+      <a className="agent-install-download" href={import.meta.env.VITE_MAC_AGENT_DOWNLOAD_URL ?? "https://github.com/dmoney893/CyberGuard/releases/download/mac-agent-v1.2.0/CyberGuard-Agent-mac-arm64.zip"}>
         Download for Mac — Apple Silicon (test build)
       </a>
       <p>
@@ -28,8 +28,8 @@ export default function AgentDownloads() {
         <a href="https://support.apple.com/en-us/102445" target="_blank" rel="noreferrer">Apple’s instructions for opening downloaded apps</a>
       </details>
       <p>
-        Keep the agent open while using device features. Malware scans require
-        a separate ClamAV installation and signature database.
+        Keep the agent open while using device features. The Mac download includes
+        the malware scanner and definitions, with automatic definition updates.
       </p>
     </div>
   );
