@@ -38,14 +38,21 @@ python3.13 -m venv .venv-agent
 .venv-agent/bin/python scripts/build-mac-agent.py
 ```
 
-The build produces `dist/mac/CyberGuard Agent.app` and a ZIP, and stages the ZIP at
-`public/downloads/CyberGuard-Agent-mac-arm64.zip` for the next frontend deployment.
+The build produces `dist/mac/CyberGuard Agent.app` and a ZIP containing ClamAV,
+starting definitions, licenses, and the matching upstream source archive.
+The full ZIP exceeds GitHub's 100 MB file limit: distribute it as a GitHub Release
+asset named `CyberGuard-Agent-mac-arm64.zip` on release `mac-agent-v1.2.0`.
+The download button defaults to that release URL; `VITE_MAC_AGENT_DOWNLOAD_URL`
+can override it. Publish the release before merging the download-link change.
 It does not deploy the website. After rebuilding, test opening the app from Finder,
 pairing, device checks, System Guardian, and a malware scan.
 
-ClamAV and its signatures are separate prerequisites for malware scans; they are
-not bundled. Finder launches search standard Homebrew ClamAV locations as well as
-PATH. Startup Applications management is currently Windows-only.
+The Mac app includes ClamAV 1.5.5 and its dependencies/certificates. On first launch
+it copies starting definitions to the user's Library/Application Support/CyberGuard
+folder and updates them automatically with FreshClam. Failed updates keep the last
+working definitions and retry after six hours. The engine runs as a separate local
+process; testers do not need Homebrew, Python, or manual ClamAV setup.
+Startup Applications management is currently Windows-only.
 
 For a local frontend on port 5173 and an agent on port 8766:
 
@@ -57,7 +64,9 @@ VITE_AGENT_URL=http://127.0.0.1:8766 npm run dev -- --port 5173 --strictPort
 
 Public Mac release requires a Developer ID signing/notarization workflow and
 testing a downloaded copy on a separate Mac. Do not describe this test ZIP as
-notarized or as including ClamAV.
+notarized. The included ClamAV source archive and license notices must remain in
+the distributed ZIP. The build downloads pinned official release assets and verifies
+their SHA-256 hashes before extracting; it does not run a system-wide installer.
 
 CyberGuard is a React + Vite frontend with a FastAPI (Python) backend. The **Email Scanner** checks emails for phishing and reports a risk score, a classification (`SAFE` / `PHISHING`), a confidence value, and a plain-English explanation of why.
 

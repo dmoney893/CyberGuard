@@ -9,6 +9,7 @@ import webbrowser
 import uvicorn
 
 from scanner_server import app, create_pairing_code
+import bundled_clamav
 
 WEBSITE_URL = "https://cyberguard-omega-sable.vercel.app"
 
@@ -17,7 +18,7 @@ class CyberGuardAgent:
     def __init__(self, root):
         self.root = root
         self.root.title("CyberGuard Agent")
-        self.root.geometry("480x480")
+        self.root.geometry("520x520")
         self.root.resizable(False, False)
         self.root.configure(bg="#101827")
 
@@ -91,6 +92,11 @@ class CyberGuardAgent:
             width=25,
         ).pack(pady=5)
 
+        self.scanner_label = tk.Label(root, text="", fg="#94A3B8", bg="#101827", wraplength=460)
+        self.scanner_label.pack(pady=10)
+        bundled_clamav.start()
+        self.update_scanner_status()
+
         self.root.protocol("WM_DELETE_WINDOW", self.close_agent)
 
         self.start_agent()
@@ -157,6 +163,11 @@ class CyberGuardAgent:
     def open_website(self):
         if self.port is not None:
             webbrowser.open(f"{WEBSITE_URL}/device-scanner?agentPort={self.port}")
+
+    def update_scanner_status(self):
+        if bundled_clamav.bundle_root() is not None:
+            self.scanner_label.config(text=bundled_clamav.status()["message"])
+        self.root.after(2000, self.update_scanner_status)
 
     def copy_code(self):
         if not self.pairing_code:
