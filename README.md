@@ -1,5 +1,49 @@
 # CyberGuard
 
+## Mac desktop agent (Apple Silicon test build)
+
+The agent runs locally; the website and hosted backend cannot access a computer's
+processes without it. Download the Mac ZIP from Settings, extract it, move
+CyberGuard Agent.app to Applications, and open it. Keep its window open.
+This build is ad hoc signed for testing, not Developer ID signed or notarized;
+macOS may block downloaded copies. Intel Macs need a separate build.
+
+Click **Open CyberGuard Website** in the agent, then copy its pairing code into
+Device Scanner. The app uses the first free port from 8765 through 8775 and opens
+the website with `?agentPort=PORT`. You can also enter the port shown in the app
+in the website's pairing form. Codes expire after five minutes and are single use.
+Allow browser permission to connect to apps on this device when requested.
+Refreshing the website currently requires pairing again.
+
+Build on Apple Silicon using a Python 3.13 installation that includes Tkinter:
+
+```bash
+python3.13 -m venv .venv-agent
+.venv-agent/bin/python -m pip install -r installer/requirements-mac.txt
+.venv-agent/bin/python scripts/build-mac-agent.py
+```
+
+The build produces `dist/mac/CyberGuard Agent.app` and a ZIP, and stages the ZIP at
+`public/downloads/CyberGuard-Agent-mac-arm64.zip` for the next frontend deployment.
+It does not deploy the website. After rebuilding, test opening the app from Finder,
+pairing, device checks, System Guardian, and a malware scan.
+
+ClamAV and its signatures are separate prerequisites for malware scans; they are
+not bundled. Finder launches search standard Homebrew ClamAV locations as well as
+PATH. Startup Applications management is currently Windows-only.
+
+For a local frontend on port 5173 and an agent on port 8766:
+
+```bash
+CYBERGUARD_AGENT_PORT=8766 .venv-agent/bin/python src/local_scanner/cyberguard_agent.py
+# In another terminal:
+VITE_AGENT_URL=http://127.0.0.1:8766 npm run dev -- --port 5173 --strictPort
+```
+
+Public Mac release requires a Developer ID signing/notarization workflow and
+testing a downloaded copy on a separate Mac. Do not describe this test ZIP as
+notarized or as including ClamAV.
+
 CyberGuard is a React + Vite frontend with a FastAPI (Python) backend. The **Email Scanner** checks emails for phishing and reports a risk score, a classification (`SAFE` / `PHISHING`), a confidence value, and a plain-English explanation of why.
 
 ## Using the Email Scanner

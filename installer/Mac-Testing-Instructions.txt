@@ -1,0 +1,24 @@
+CyberGuard Agent — Mac test build (Apple Silicon: M1/M2/M3/M4 or newer)
+
+1. Extract the ZIP and move CyberGuard Agent.app to Applications.
+2. Double-click CyberGuard Agent. No Python or Terminal commands are needed.
+3. If macOS blocks it, approve this known test build using System Settings >
+   Privacy & Security > Open Anyway. This build is not Apple notarized.
+   Do not disable Gatekeeper or other system security settings.
+4. Keep the agent window open and click Open CyberGuard Website.
+5. Sign in, copy the pairing code from the app, paste it into Device Scanner,
+   and click Pair Device. Allow the browser to connect to apps on your device
+   if it requests permission. The port should already match the app window.
+6. Use Device Scanner or System Guardian. Closing the app stops the agent.
+
+Generate New Code if the code has expired or was already used. Codes last
+five minutes. Refreshing the website currently requires pairing again.
+
+This ZIP is for Apple Silicon Macs, not Intel Macs. Startup Applications
+management is currently Windows-only. Malware scanning requires a separate
+ClamAV installation and signature database; ClamAV is not included in this ZIP.
+You can still use device security checks and system monitoring without ClamAV.
+
+If connection fails, confirm the agent is open and the website's Agent port
+matches the port shown in its window. Check browser permission to connect to
+apps on this device. The website must include the Mac agent connection update.

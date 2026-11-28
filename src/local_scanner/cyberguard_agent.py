@@ -1,4 +1,6 @@
 
+import os
+import socket
 import threading
 import tkinter as tk
 from tkinter import messagebox
@@ -15,13 +17,15 @@ class CyberGuardAgent:
     def __init__(self, root):
         self.root = root
         self.root.title("CyberGuard Agent")
-        self.root.geometry("440x420")
+        self.root.geometry("480x480")
         self.root.resizable(False, False)
         self.root.configure(bg="#101827")
 
         self.server = None
         self.server_thread = None
         self.pairing_code = None
+        self.port = None
+        self.listener = None
 
         tk.Label(
             root,
@@ -83,7 +87,7 @@ class CyberGuardAgent:
         tk.Button(
             root,
             text="Open CyberGuard Website",
-            command=lambda: webbrowser.open(WEBSITE_URL),
+            command=self.open_website,
             width=25,
         ).pack(pady=5)
 
@@ -92,12 +96,29 @@ class CyberGuardAgent:
         self.start_agent()
 
     def start_agent(self):
+        configured = os.environ.get("CYBERGUARD_AGENT_PORT")
+        ports = [int(configured)] if configured else range(8765, 8776)
+        for port in ports:
+            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                listener.bind(("127.0.0.1", port))
+                listener.listen(128)
+            except OSError:
+                listener.close()
+                continue
+            self.listener = listener
+            self.port = port
+            break
+        if self.listener is None:
+            self.status_label.config(text="No available agent port", fg="#EF4444")
+            messagebox.showerror("CyberGuard Agent", "Agent ports are already in use. Close another CyberGuard Agent and try again.")
+            return
         self.generate_code()
 
         config = uvicorn.Config(
             app,
             host="127.0.0.1",
-            port=8765,
+            port=self.port,
             log_level="warning",
             log_config=None,
             access_log=False,
@@ -107,6 +128,7 @@ class CyberGuardAgent:
 
         self.server_thread = threading.Thread(
             target=self.server.run,
+            kwargs={"sockets": [self.listener]},
             daemon=True,
         )
         self.server_thread.start()
@@ -116,7 +138,7 @@ class CyberGuardAgent:
     def check_server(self):
         if self.server and self.server.started:
             self.status_label.config(
-                text="Agent Running",
+                text=f"Agent Running — Port {self.port}",
                 fg="#22C55E",
             )
         elif self.server_thread and not self.server_thread.is_alive():
@@ -131,6 +153,10 @@ class CyberGuardAgent:
             )
         else:
             self.root.after(300, self.check_server)
+
+    def open_website(self):
+        if self.port is not None:
+            webbrowser.open(f"{WEBSITE_URL}/device-scanner?agentPort={self.port}")
 
     def copy_code(self):
         if not self.pairing_code:
