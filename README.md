@@ -1,5 +1,64 @@
 # CyberGuard
 
+## Mac desktop agent (Apple Silicon test build)
+
+The agent runs locally; the website and hosted backend cannot access a computer's
+processes without it. Download the Mac ZIP from Settings, extract it, move
+CyberGuard Agent.app to Applications, and open it. Keep its window open.
+This build is ad hoc signed for testing, not Developer ID signed or notarized;
+macOS may block downloaded copies. Intel Macs need a separate build.
+
+If macOS displays **“CyberGuard Agent Not Opened”** / **“Apple could not verify”**,
+click **Done** (not Move to Trash). For the team's known test download, open
+**Apple menu → System Settings → Privacy & Security**, scroll to the CyberGuard
+blocked notice, choose **Open Anyway**, authenticate if requested, and confirm
+**Open**. This is normally a one-time approval for that copy; updates may need
+approval again. If the notice is missing, attempt to open the app again and return
+to Settings. School-managed Macs may require IT approval. Do not disable Gatekeeper.
+See [Apple's instructions](https://support.apple.com/en-us/102445).
+
+Click **Open CyberGuard Website** in the agent, then copy its pairing code into
+Device Scanner. The app uses the first free port from 8765 through 8775 and opens
+the website with `?agentPort=PORT`. You can also enter the port shown in the app
+in the website's pairing form. Codes expire after five minutes and are single use.
+Allow browser permission to connect to apps on this device when requested.
+Refreshing the website currently requires pairing again.
+
+The desktop agent permits this exact PR branch preview for pre-merge testing:
+`https://cyberguard-git-feature-mac-agent-installer-dmoney893.vercel.app`.
+Open Device Scanner there manually and use the port shown in the app. This is
+an explicit desktop-agent exception, not a wildcard preview rule, and does not
+change the browser extension's separate account-linking allowlist.
+
+Build on Apple Silicon using a Python 3.13 installation that includes Tkinter:
+
+```bash
+python3.13 -m venv .venv-agent
+.venv-agent/bin/python -m pip install -r installer/requirements-mac.txt
+.venv-agent/bin/python scripts/build-mac-agent.py
+```
+
+The build produces `dist/mac/CyberGuard Agent.app` and a ZIP, and stages the ZIP at
+`public/downloads/CyberGuard-Agent-mac-arm64.zip` for the next frontend deployment.
+It does not deploy the website. After rebuilding, test opening the app from Finder,
+pairing, device checks, System Guardian, and a malware scan.
+
+ClamAV and its signatures are separate prerequisites for malware scans; they are
+not bundled. Finder launches search standard Homebrew ClamAV locations as well as
+PATH. Startup Applications management is currently Windows-only.
+
+For a local frontend on port 5173 and an agent on port 8766:
+
+```bash
+CYBERGUARD_AGENT_PORT=8766 .venv-agent/bin/python src/local_scanner/cyberguard_agent.py
+# In another terminal:
+VITE_AGENT_URL=http://127.0.0.1:8766 npm run dev -- --port 5173 --strictPort
+```
+
+Public Mac release requires a Developer ID signing/notarization workflow and
+testing a downloaded copy on a separate Mac. Do not describe this test ZIP as
+notarized or as including ClamAV.
+
 CyberGuard is a React + Vite frontend with a FastAPI (Python) backend. The **Email Scanner** checks emails for phishing and reports a risk score, a classification (`SAFE` / `PHISHING`), a confidence value, and a plain-English explanation of why.
 
 ## Using the Email Scanner
@@ -92,6 +151,23 @@ To point the frontend at a backend on a different address, set `VITE_API_BASE_UR
 Keep all backend credentials in `src/backend/.env`; never copy them into the frontend or extension files. The service-role key is especially sensitive and must never be exposed to the browser. The root `.env` is only for frontend-safe values such as `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`.
 
 ### Browser extension and Website Tracker
+
+For testers, Website Tracker has a **Download Chrome extension ZIP** link. Extract
+it to a permanent folder, open `chrome://extensions`, enable Developer mode, and
+choose **Load unpacked** with the folder containing `manifest.json`. Refresh the
+published CyberGuard website and sign in. No desktop agent or local backend is
+needed for extension monitoring. The ZIP includes installation/update instructions.
+It is a manual test installation, with no automatic updates.
+
+`npm run build:extension` builds `extension/dist` and creates
+`public/downloads/CyberGuard-Extension.zip` using only built assets and instructions.
+Rebuild and commit the ZIP after extension source changes so website downloads
+match the source. The archive is packaged using Node, on Mac or Windows.
+
+The production extension uses the hosted backend. Account linking permits only
+the exact published origin `https://cyberguard-omega-sable.vercel.app` and the two
+local development origins on port 5173. A PR preview can serve the download but
+cannot link extension accounts. Do not wildcard preview origins.
 
 The extension checks websites using Google Web Risk, OpenPhish, and URL/page signals. Website Tracker shows saved visits, risk scores, and explanations, with search, filters, personal blocking, and history deletion. Scores indicate evidence strength, not a probability that a site is unsafe.
 

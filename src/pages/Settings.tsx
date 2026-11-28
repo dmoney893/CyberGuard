@@ -12,6 +12,7 @@ import {
   type DesktopPermission,
 } from "../lib/alertNotifications";
 import ProfilePictureCard from "../components/ProfilePictureCard";
+import AgentDownloads from "../components/AgentDownloads";
 import {
   checkAgentHealth,
   isAgentPaired,
@@ -901,7 +902,7 @@ function Settings() {
         <h2>CyberGuard Desktop Agent</h2>
 
         <p className="settings-card-desc">
-          Install CyberGuard Agent on your Windows computer to enable
+          Install CyberGuard Agent on your Windows or Apple Silicon Mac computer to enable
           local device scanning and system security monitoring.
         </p>
 
@@ -912,7 +913,7 @@ function Settings() {
                 Desktop Agent
               </span>
               <span className="settings-toggle-state">
-                Optional Windows application
+                Optional desktop application
               </span>
             </div>
 
@@ -938,23 +939,10 @@ function Settings() {
             </span>
           </div>
 
-          <button
-            type="button"
-            className="settings-button"
-            onClick={() => {
-              const link = document.createElement("a");
-              link.href = "/downloads/CyberGuardSetup.exe";
-              link.download = "CyberGuardSetup.exe";
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-          >
-            Download CyberGuard Agent
-          </button>
+          <AgentDownloads />
 
           <p className="settings-card-desc">
-            The desktop agent is optional. Download the Windows installer
+            The desktop agent is optional. Download the app for your operating system
             to enable local device scanning and system security monitoring.
             You can continue using CyberGuard without installing it.
           </p>

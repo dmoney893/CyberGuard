@@ -28,6 +28,7 @@ dist-ssr
 .env.local
 # Python / secrets
 .venv/
+.venv-agent/
 __pycache__/
 *.pyc
 .env

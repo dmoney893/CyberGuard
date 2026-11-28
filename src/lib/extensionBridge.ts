@@ -17,13 +17,13 @@ export function requestExtension(
   signal?: AbortSignal,
 ): Promise<ExtensionState> {
   if (
-    !["http://localhost:5173", "http://127.0.0.1:5173"].includes(
+    !["http://localhost:5173", "http://127.0.0.1:5173", "https://cyberguard-omega-sable.vercel.app"].includes(
       window.location.origin,
     )
   ) {
     return Promise.reject(
       new Error(
-        "The extension connection supports http://localhost:5173 or http://127.0.0.1:5173. Open CyberGuard at one of those addresses, then check again.",
+        "Open https://cyberguard-omega-sable.vercel.app/website-tracker to connect the extension.",
       ),
     );
   }

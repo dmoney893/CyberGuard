@@ -424,6 +424,23 @@ function WebsiteTrackerContent() {
         </div>
       </div>
 
+      <section className="extension-install" aria-labelledby="extension-install-title">
+        <h2 id="extension-install-title">Install the browser extension</h2>
+        <p>For Chrome on Mac and Windows. No desktop agent needed.</p>
+        <a className="extension-download" href="/downloads/CyberGuard-Extension.zip" download>Download Chrome extension ZIP</a>
+        <p><a href="https://cyberguard-omega-sable.vercel.app/website-tracker">Open Website Tracker</a> to connect and save history.</p>
+        <details>
+          <summary>Installation instructions</summary>
+          <ol>
+            <li>Extract the ZIP to a folder you will keep on your computer.</li>
+            <li>Open <code>chrome://extensions</code> in Chrome and enable Developer mode.</li>
+            <li>Choose <strong>Load unpacked</strong> and select the extracted folder containing <code>manifest.json</code>.</li>
+            <li>Click <strong>Connect dashboard to save history</strong> in the extension popup. Sign in and refresh the published website.</li>
+          </ol>
+          <p>To update: replace the extracted files, click Reload in Chrome, and refresh CyberGuard.</p>
+        </details>
+      </section>
+
       {!session && (
         <div className="tracker-guest-message">
           <Globe2 size={18} />

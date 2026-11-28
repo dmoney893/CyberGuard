@@ -3,6 +3,8 @@ import { useState } from "react";
 import {
   pairAgent,
   checkAgentHealth,
+  getAgentPort,
+  setAgentPort,
 } from "../lib/localAgent";
 
 type AgentPairingProps = {
@@ -15,6 +17,7 @@ export default function AgentPairing({
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [port, setPort] = useState(getAgentPort);
 
   const handlePair = async () => {
     if (!code.trim()) return;
@@ -23,6 +26,7 @@ export default function AgentPairing({
     setError("");
 
     try {
+      setAgentPort(port);
       await checkAgentHealth();
       await pairAgent(code);
       setCode("");
@@ -53,6 +57,11 @@ export default function AgentPairing({
           void handlePair();
         }}
       >
+        <label>
+          Agent port
+          <input type="number" min="1024" max="65535" value={port}
+            onChange={(event) => setPort(event.target.value)} required disabled={loading} />
+        </label>
         <input
           type="text"
           placeholder="Enter pairing code"

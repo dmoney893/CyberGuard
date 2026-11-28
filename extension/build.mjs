@@ -82,3 +82,5 @@ await fs.copyFile(
 	path.join(sourceRoot, "blocked.css"),
 	path.join(outputRoot, "blocked.css"),
 );
+
+await import("./package.mjs");

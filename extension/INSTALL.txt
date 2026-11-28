@@ -1,0 +1,15 @@
+CyberGuard extension — Chrome on Mac and Windows
+
+1. Extract the ZIP and keep the folder.
+2. Open chrome://extensions and enable Developer mode.
+3. Click Load unpacked and select the folder containing manifest.json.
+4. In the popup, click Connect dashboard to save history. Sign in and refresh.
+5. Visit a website, then check Website Tracker.
+
+Connect here: https://cyberguard-omega-sable.vercel.app/website-tracker
+
+No desktop agent or Terminal commands needed. The extension sends visited URLs
+to CyberGuard's hosted service for analysis; review its browser permissions.
+
+Updates: replace the files, click Reload in chrome://extensions, and refresh
+CyberGuard. Keep the installed folder. Remove through chrome://extensions.

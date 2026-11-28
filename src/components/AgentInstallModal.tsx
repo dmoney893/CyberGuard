@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import "./AgentInstallModal.css";
 import cyberguardLogo from "../assets/logo.png";
 import { checkAgentHealth } from "../lib/localAgent";
+import AgentDownloads from "./AgentDownloads";
 
 type AgentInstallModalProps = {
   isOpen: boolean;
@@ -95,19 +96,7 @@ useEffect(() => {
             to complete pairing if needed.
           </p>
         ) : (
-          <button
-            className="agent-install-download"
-            onClick={() => {
-              const link = document.createElement("a");
-              link.href = "/downloads/CyberGuardSetup.exe";
-              link.download = "CyberGuardSetup.exe";
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-          >
-            Download CyberGuard Agent
-          </button>
+          <AgentDownloads />
         )}
 
         <button

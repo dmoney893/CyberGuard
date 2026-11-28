@@ -120,24 +120,7 @@ monitoringToggle?.addEventListener("change", async () => {
 historyButton?.addEventListener("click", async () => {
 	setStatus("Opening CyberGuard dashboard...");
 	try {
-		const tabs = await chrome.tabs.query({
-			active: false,
-			currentWindow: false,
-		});
-		const dashboardOrigin =
-			tabs
-				.map((tab) => tab.url)
-				.find(
-					(url) =>
-						url?.startsWith("http://127.0.0.1:5173") ||
-						url?.startsWith("http://localhost:5173"),
-				)
-				?.split("/")
-				.slice(0, 3)
-				.join("/") ?? "http://localhost:5173";
-		await chrome.tabs.create({
-			url: `${dashboardOrigin}/website-tracker?extension=connect`,
-		});
+		await chrome.runtime.sendMessage({ type: "openDashboard" });
 		setStatus("Dashboard opened. Sign in to enable history saving.");
 	} catch (error) {
 		console.error("Could not open CyberGuard dashboard", error);
@@ -199,7 +182,7 @@ async function refreshActivity() {
 		console.error("Popup live check failed", error);
 		setStatus("Could not reach the CyberGuard backend.");
 		latestElement!.textContent =
-			"Check that the backend is running on localhost:8000.";
+			"Check your internet connection and try again. The hosted service may be starting up.";
 	} finally {
 		refreshButton?.removeAttribute("disabled");
 	}
